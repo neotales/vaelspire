@@ -1,0 +1,48 @@
+[package]
+name = "vaelspire-store-sqlite"
+version.workspace = true
+authors.workspace = true
+publish.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+vaelspire-core = { path = "../vaelspire-core" }
+neotales-dbapi = "=0.0.0-alpha.0"
+neotales-dbapi-sqlite = { version = "=0.0.0-alpha.0", optional = true }
+neotales-migration = "=0.0.0-alpha.0"
+neotales-migration-sqlite = { version = "=0.0.0-alpha.0", default-features = false }
+async-trait = "0.1"
+time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
+serde_json.workspace = true
+
+[features]
+oidc = ["social", "vaelspire-core/oidc"]
+default = ["sqlx-compat"]
+sqlx-compat = ["dep:neotales-dbapi-sqlite"]
+password = []
+session = []
+passkey = ["vaelspire-auth/passkey"]
+mfa = ["vaelspire-auth/mfa"]
+social = ["vaelspire-core/social"]
+
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+vaelspire-auth = { path = "../vaelspire-auth", features = ["apikeys", "email-signin", "social"] }
+# Decodes the caller-visible enrollment secret in the shared MFA contract.
+base64.workspace = true
+uuid = { version = "1", features = ["v7"] }
+bcrypt = "0.19.3"
+tokio = { version = "1.47", features = ["macros", "rt-multi-thread"] }
+# Test-only inspector for assertions and fixtures. The adapter itself goes through
+# `neotales-dbapi`; this crate is not part of its public API.
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "sqlite"] }
+
+tempfile = "3.24"
+neotales-dbapi-sqlite = "=0.0.0-alpha.0"
+neotales-dbapi-sqlite-direct = "=0.0.0-alpha.0"

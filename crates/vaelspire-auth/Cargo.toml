@@ -1,0 +1,55 @@
+[package]
+name = "vaelspire-auth"
+version.workspace = true
+authors.workspace = true
+publish.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+vaelspire-core = { path = "../vaelspire-core" }
+argon2 = { version = "0.6", features = ["getrandom"], optional = true }
+bcrypt = { version = "0.19.3", optional = true }
+blake3 = "1"
+base64 = "0.22"
+getrandom = "0.3"
+uuid = { version = "1", features = ["v7"] }
+time = "0.3"
+tokio = { version = "1.47", features = ["sync"] }
+zeroize.workspace = true
+aes-gcm = { workspace = true, optional = true }
+hmac = { version = "0.12", optional = true }
+sha1 = { version = "0.10", optional = true }
+subtle = { version = "2", optional = true }
+# `danger-allow-state-serialisation` is required: the ceremony state is persisted as JSON
+# between the begin and finish requests. The feature name is the crate's, not a local choice.
+webauthn-rs = { version = "=0.5.5", optional = true, features = ["danger-allow-state-serialisation"] }
+serde_json = { workspace = true, optional = true }
+url = { workspace = true, optional = true }
+
+[features]
+oidc = ["social", "vaelspire-core/oidc"]
+default = ["password", "session"]
+password = ["dep:argon2", "dep:bcrypt"]
+session = []
+passkey = ["session", "dep:webauthn-rs", "dep:serde_json", "dep:url"]
+mfa = ["dep:aes-gcm", "dep:hmac", "dep:sha1", "dep:subtle"]
+apikeys = []
+# Signing in with an email-delivered one-time proof issues a session, so this feature
+# carries `session`; it does not depend on `password`.
+email-signin = ["session"]
+# Signing in with a GitHub, Google, or Microsoft identity issues a session, so this
+# feature carries `session`; it does not depend on `password`.
+social = ["session", "vaelspire-core/social"]
+
+[dev-dependencies]
+# The `AuthStore` port is declared through `#[async_trait]`, so the test store the
+# digest vector constructs needs the same attribute. Test-only; the library never
+# depends on it.
+async-trait = "0.1"
+
+
+[lints]
+workspace = true

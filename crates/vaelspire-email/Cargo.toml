@@ -1,0 +1,38 @@
+[package]
+name = "vaelspire-email"
+version.workspace = true
+authors.workspace = true
+publish.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+vaelspire-core = { path = "../vaelspire-core" }
+async-trait = "0.1"
+zeroize.workspace = true
+
+[features]
+default = []
+password = []
+session = []
+smtp = ["dep:lettre"]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tokio = { version = "1.47", features = ["macros", "rt-multi-thread"] }
+testcontainers = "=0.28.0"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+getrandom = "0.3"
+
+[dependencies.lettre]
+version = "=0.11.23"
+optional = true
+default-features = false
+features = ["builder", "smtp-transport", "tokio1-rustls-tls"]

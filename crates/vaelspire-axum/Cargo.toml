@@ -1,0 +1,57 @@
+[package]
+name = "vaelspire-axum"
+version.workspace = true
+authors.workspace = true
+publish.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+vaelspire-auth = { path = "../vaelspire-auth", default-features = false }
+vaelspire-core = { path = "../vaelspire-core" }
+# `json` for the request bodies; `tokio` for `ConnectInfo`, which is where the
+# connection IP used by audit comes from. No server, TLS, or template features.
+axum = { version = "0.8", default-features = false, features = ["json", "tokio"] }
+serde.workspace = true
+serde_json.workspace = true
+time = { version = "0.3", features = ["parsing", "formatting"] }
+# `spawn_blocking` keeps Argon2 off the async worker; no runtime is started here.
+tokio = { version = "1.47", features = ["rt"] }
+uuid = { version = "1", features = ["v4"] }
+# The router keeps the digest key in the state, so it clears it on drop.
+zeroize.workspace = true
+# The social callback exchanges the authorization code at the caller's token URL.
+# Only compiled when `social` is on; no provider URL is hard-coded into a request
+# the application cannot point somewhere else.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
+url = { workspace = true, optional = true }
+
+[features]
+oidc = ["social", "vaelspire-core/oidc"]
+default = ["password", "session"]
+password = ["vaelspire-auth/password"]
+session = ["vaelspire-auth/session"]
+passkey = ["session", "vaelspire-auth/passkey"]
+mfa = ["session", "vaelspire-auth/mfa"]
+apikeys = ["vaelspire-auth/apikeys"]
+# Email sign-in issues a session, so the routes need the cookie helpers too. This does
+# not enable `password`.
+email-signin = ["session", "vaelspire-auth/email-signin"]
+# Sign in with a GitHub, Google, or Microsoft identity through the same session
+# cookie as password sign-in. This does not enable `password`.
+social = ["session", "vaelspire-auth/social", "vaelspire-core/social", "dep:reqwest", "dep:url"]
+
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+vaelspire-store-sqlite = { path = "../vaelspire-store-sqlite", features = ["social"] }
+tempfile = "3.24"
+tokio = { version = "1.47", features = ["macros", "rt-multi-thread"] }
+tower = { version = "0.5", features = ["util"] }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "sqlite"] }
+p256 = { workspace = true }
+sha2 = { workspace = true }

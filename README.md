@@ -25,6 +25,23 @@ Vaelspire uses an open-core licensing split:
 - **Open-Core (`/` outside `enterprise/`):** Licensed under the [MIT License](LICENSE).
 - **Enterprise (`enterprise/`):** Proprietary — governed by the [Vaelspire Enterprise License](LICENSE-ENTERPRISE).
 
+## Workspace Crates (MIT Open-Core)
+
+Vaelspire's base crates can be embedded directly into Rust applications (no separate auth server
+required) or composed by the upcoming `vaelspire` single-binary CLI/server:
+
+- `vaelspire-core` — Domain types, `AuthStore` trait, error codes, and core contracts
+- `vaelspire-auth` — Password hashing (Argon2id + bcrypt upgrade), keyed BLAKE3 digests, sessions,
+  TOTP MFA, Passkeys/WebAuthn, API keys, email sign-in, social/OIDC client
+- `vaelspire-axum` — Axum 0.8 routers, CSRF/origin protection, `spawn_blocking` Argon2, social/OIDC
+  and passkey handlers
+- `vaelspire-email` — Email delivery hook and optional SMTP (`lettre`) transport
+- `vaelspire-store-sqlite` — SQLite adapter over `neotales-dbapi` and `neotales-migration`
+- `vaelspire-store-postgres` — PostgreSQL adapter over `neotales-dbapi` and `neotales-migration`
+
 ## Status
 
-Early architecture and repository bootstrap.
+Base MIT crates (`vaelspire-*`) imported from `neotales-x-auth*` and passing full workspace
+conformance tests on SQLite and compilation/clippy gates across SQLite and Postgres. Next up:
+`vaelspire` single-binary CLI/server, OIDC Identity Provider (IdP), Forward-Auth, embedded
+SvelteKit UI, and the Rune desktop app.
