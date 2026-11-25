@@ -1,0 +1,27 @@
+# OS and editors
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Build and runtime artifacts
+dist/
+build/
+target/
+bin/
+coverage/
+*.log
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db

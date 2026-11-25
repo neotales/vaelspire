@@ -1,0 +1,53 @@
+Vaelspire Enterprise License
+
+Copyright (c) 2026 Neotales. All rights reserved.
+
+This license governs all files, source code, binaries, documentation, and
+related materials located within the `enterprise/` directory of this
+repository, as well as any file containing a header referencing this
+Vaelspire Enterprise License (collectively, the "Enterprise Software").
+
+1. Scope and Separation from Open-Core
+   All other portions of this repository outside `enterprise/` (and not
+   marked with a Vaelspire Enterprise License header) are licensed separately
+   under the MIT License found in the root `LICENSE` file.
+
+2. Commercial License Required
+   Production, commercial, or organizational deployment of the Enterprise
+   Software requires a valid, paid commercial license agreement issued by
+   Neotales ("Commercial License") and an active license key matching your
+   licensed seat count, region limits, and enabled enterprise features.
+
+3. Permitted Evaluation and Development Use
+   Without a Commercial License, you may view, compile, and run the
+   Enterprise Software solely for non-production evaluation, local
+   development, security research, or contributing patches to this
+   repository.
+
+4. Restrictions
+   Unless expressly authorized in writing by Neotales under a Commercial
+   License, you may not:
+   (a) deploy or use the Enterprise Software in production;
+   (b) remove, alter, bypass, or disable any license verification, seat,
+       region, or feature-gating mechanism;
+   (c) redistribute, sublicense, rent, lease, or offer the Enterprise
+       Software (or derivative works thereof) as a hosted service, managed
+       platform, or competing product.
+
+5. Contributions
+   By submitting a contribution to the Enterprise Software, you grant
+   Neotales a perpetual, worldwide, non-exclusive, irrevocable, royalty-free
+   license to use, reproduce, modify, distribute, and relicense your
+   contribution under any license terms.
+
+6. Disclaimer of Warranty and Limitation of Liability
+   EXCEPT AS EXPRESSLY PROVIDED IN A SIGNED COMMERCIAL LICENSE AGREEMENT, THE
+   ENTERPRISE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN
+   NO EVENT SHALL NEOTALES OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+   DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR
+   OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE ENTERPRISE
+   SOFTWARE.
+
+For commercial and enterprise licensing inquiries, contact Neotales.
