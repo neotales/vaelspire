@@ -1,0 +1,27 @@
+# Example Traefik dynamic configuration for Vaelspire /forward-auth
+http:
+  middlewares:
+    vaelspire-auth:
+      forwardAuth:
+        address: "http://vaelspire:8080/forward-auth"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - "X-Vaelspire-User-Id"
+          - "X-Vaelspire-Email"
+          - "X-Vaelspire-Tenant-Id"
+          - "X-Vaelspire-Auth-Method"
+          - "X-Vaelspire-Session-Id"
+          - "X-Vaelspire-Api-Key-Id"
+
+  routers:
+    protected-app:
+      rule: "Host(`app.example.com`)"
+      middlewares:
+        - vaelspire-auth
+      service: upstream-app
+
+  services:
+    upstream-app:
+      loadBalancer:
+        servers:
+          - url: "http://app:3000"

@@ -1,0 +1,23 @@
+services:
+  vaelspire:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      VAELSPIRE_BIND: "0.0.0.0:8080"
+      VAELSPIRE_SQLITE_PATH: "/data/vaelspire.sqlite"
+      VAELSPIRE_TENANT_NAME: "default"
+      VAELSPIRE_INSECURE_HTTP: "${VAELSPIRE_INSECURE_HTTP:-true}"
+      VAELSPIRE_TRUST_PROXY: "${VAELSPIRE_TRUST_PROXY:-false}"
+      VAELSPIRE_AUTH_KEY: "${VAELSPIRE_AUTH_KEY:-}"
+      VAELSPIRE_ADMIN_EMAIL: "${VAELSPIRE_ADMIN_EMAIL:-admin@vaelspire.local}"
+      VAELSPIRE_ADMIN_PASSWORD: "${VAELSPIRE_ADMIN_PASSWORD:-change-me-in-production}"
+      VAELSPIRE_LOG_FORMAT: "${VAELSPIRE_LOG_FORMAT:-pretty}"
+    volumes:
+      - vaelspire-data:/data
+    restart: unless-stopped
+
+volumes:
+  vaelspire-data:

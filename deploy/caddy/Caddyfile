@@ -1,0 +1,12 @@
+# Example Caddyfile protecting an upstream app (e.g., Vaelsgard) via Vaelspire /forward-auth
+auth.example.com {
+    reverse_proxy 127.0.0.1:8080
+}
+
+app.example.com {
+    forward_auth 127.0.0.1:8080 {
+        uri /forward-auth
+        copy_headers X-Vaelspire-User-Id X-Vaelspire-Email X-Vaelspire-Tenant-Id X-Vaelspire-Auth-Method X-Vaelspire-Session-Id X-Vaelspire-Api-Key-Id
+    }
+    reverse_proxy 127.0.0.1:3000
+}
