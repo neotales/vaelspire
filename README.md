@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="Core License: MIT" src="https://img.shields.io/badge/Core_License-MIT-22d3ee?style=flat-square" /></a>
+  <a href="LICENSE"><img alt="Core License: MIT" src="https://img.shields.io/badge/Core_License-MIT-d97706?style=flat-square" /></a>
   <a href="LICENSE-ENTERPRISE"><img alt="Enterprise License: Commercial" src="https://img.shields.io/badge/Enterprise-Commercial-f59e0b?style=flat-square" /></a>
   <img alt="Rust 1.100" src="https://img.shields.io/badge/Rust-1.100%20%282024%29-orange?style=flat-square" />
   <img alt="Zero Unsafe" src="https://img.shields.io/badge/unsafe__code-forbid-10b981?style=flat-square" />
