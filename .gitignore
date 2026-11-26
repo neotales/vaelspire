@@ -27,7 +27,3 @@ coverage/
 *.db
 .vaelspire/
 
-# Docs site
-docs/node_modules/
-docs/dist/
-docs/.astro/

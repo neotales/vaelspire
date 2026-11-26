@@ -45,5 +45,5 @@ Vaelspire Core is ready!
 Next steps:
   1. Start the server:   ./scripts/quickstart.sh
   2. Run a live check:   ./scripts/smoke-test.sh
-  3. Browse docs site:   cd docs && pnpm install && pnpm dev
+  3. Docs & marketing:   https://github.com/neotales/vaelspire-site (local: ~/work/vaelspire-site)
 EOF

@@ -167,16 +167,13 @@ When your organization needs **global low-latency replication, regulated immutab
 
 ---
 
-## 📚 Documentation & AI Agent Reference
+## 📚 Documentation, Roadmap & AI Agent Reference
 
-Vaelspire ships an **Astro Starlight** documentation and product site in [`docs/`](docs/):
-
-- **For humans:** Quickstarts, reverse-proxy guides (Caddy, Traefik, Nginx), crate walkthroughs, security architecture, and Enterprise packaging.
-- **For AI coding agents:** Dedicated high-density reference pages (`/agents/`, `/agents/api-reference/`, `/agents/crate-recipes/`) plus standard [`/llms.txt`](docs/public/llms.txt) and [`/llms-full.txt`](docs/public/llms-full.txt) endpoints so agents can integrate Vaelspire without guessing.
-
-```bash
-cd docs && pnpm install && pnpm dev
-```
+- 🗺️ **Public Roadmap:** [ROADMAP.md](ROADMAP.md)
+- 🚀 **Release Policy (Docs Before Tag):** [RELEASING.md](RELEASING.md)
+- 🌐 **Marketing & Documentation Site (Astro Starlight):** [**`neotales/vaelspire-site`**](https://github.com/neotales/vaelspire-site)
+  - **For humans:** Quickstarts, reverse-proxy guides (Caddy, Traefik, Nginx), crate walkthroughs, security architecture, Roadmap, and Enterprise packaging.
+  - **For AI coding agents:** Dedicated high-density reference pages (`/agents/`, `/agents/api-reference/`, `/agents/crate-recipes/`) plus standard `/llms.txt` and `/llms-full.txt` endpoints so agents can integrate Vaelspire without guessing.
 
 ---
 
