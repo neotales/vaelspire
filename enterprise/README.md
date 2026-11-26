@@ -1,40 +1,26 @@
-# 🏢 Vaelspire Enterprise
+# Vaelspire Enterprise (`enterprise/`)
 
-> **Security stays free in Vaelspire Core.** Vaelspire Enterprise is for organizations that need global geo-replication, regulated WORM audit storage, enterprise SIEM telemetry, seat/region governance, and formal compliance packages.
+> **License Notice:** Everything under `enterprise/` is proprietary software governed by [`LICENSE-ENTERPRISE`](../LICENSE-ENTERPRISE), completely isolated in its own Cargo workspace from the MIT-licensed Open-Core crates in `crates/`.
 
-This directory contains proprietary commercial and enterprise modules for **Vaelspire**, governed by the [Vaelspire Enterprise License](../LICENSE-ENTERPRISE).
+## Philosophy: Zero SSO Tax
 
----
+Core security — Argon2id passwords, TOTP/Passkey MFA, OIDC 1.0 IdP with Ed25519 JWKS, PKCE, Refresh Token Rotation, SCIM 2.0, Non-Human Identity (`client_credentials`), SAML metadata, RBAC, and `/forward-auth` — is **100% free and MIT-licensed forever**.
 
-## 💼 What You Get with Vaelspire Enterprise
+Vaelspire Enterprise implements the extension trait seams defined in `vaelspire-core::extensions` (`LicenseGate`, `AuditSink`, `TelemetrySink`, `RegionPolicy`, `ReplicationHook`) for large-scale compliance, global resiliency, and regulated enterprises.
 
-### 🌍 Multi-Region Active-Active Geo-Replication
-- Unlimited regions with low-latency regional reads/writes and global session revocation sync
-- Per-tenant **data-residency pinning** (keep EU, US, and APAC identities inside sovereign boundaries)
-- Multi-cluster HA and Kubernetes deployment tooling
+## Workspace Crates
 
-### 🔒 WORM Immutable Audit Storage
-- Write-Once-Read-Many compliance sinks backed by **AWS S3 Object Lock**, **Azure Immutable Blob Storage**, and **Google Cloud Storage Bucket Lock**
-- Multi-year tamper-evident retention (1–7+ years) with cryptographic hash-chaining for **SOC 2, HIPAA, FINRA, and SEC 17a-4** audits
-- Read-only auditor export portal
+| Crate | Core Trait Implemented | Capability |
+| --- | --- | --- |
+| `vaelspire-license` | `LicenseGate` | Offline Ed25519 `.vlic` signed license issuance & verification. **Non-bricking guarantee:** expired or invalid licenses NEVER block user logins (`allows_login() == true` always). |
+| `vaelspire-worm` | `AuditSink` | SHA-256 tamper-evident hash-chained audit records + cloud Object Lock archive framing (`S3ObjectLock`, `AzureImmutableBlob`, `GcsBucketLock`). |
+| `vaelspire-telemetry` | `TelemetrySink` | Bounded, non-blocking SIEM & observability exporter with OpenTelemetry OTLP JSON, Splunk HEC NDJSON, and Datadog Logs batch formatters. |
+| `vaelspire-georep` | `RegionPolicy`, `ReplicationHook` | Lock-free EU/US/APAC tenant data-residency pinning and ordered cross-region replication outbox envelopes. |
 
-### 📡 Enterprise Telemetry & Real-Time SIEM Streaming
-- Native **OpenTelemetry** distributed tracing and metrics pipelines
-- Real-time event streaming into **Splunk, Datadog, Microsoft Sentinel, CrowdStrike, and Kafka**
-- Login anomaly and security telemetry dashboards
+## Local Verification
 
-### 🎟️ Sane Licensing (Never Bricks Your Logins)
-- **Offline-verifiable Ed25519-signed license files** — runs cleanly in fully **air-gapped** environments with zero phone-home requirement
-- Separate **Workforce seat packs** and **high-volume CIAM MAU packs** (so B2C apps are never penalized by employee-style seat pricing)
-- **Graceful enforcement guarantee:** an expired license or temporary seat spike alerts admins without ever locking users out of authentication
-
-### 🛡️ Regulated Compliance & Dedicated Support
-- **FIPS 140-3** validated cryptographic builds
-- Formal third-party penetration test reports and security audit attestations (under NDA)
-- SOC 2 / ISO 27001 compliance artifacts, security questionnaire turnaround, and guaranteed CVE patching SLAs
-
----
-
-## 🧪 Evaluating Enterprise Modules
-
-Under the [Vaelspire Enterprise License](../LICENSE-ENTERPRISE), you may view, compile, and test files in `enterprise/` for **non-production evaluation, local development, and security research** without purchasing a license. Production or commercial deployment requires an active commercial license agreement with **Neotales**.
+```bash
+cd enterprise
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```

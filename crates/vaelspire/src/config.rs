@@ -17,6 +17,29 @@ pub enum LogFormat {
     Json,
 }
 
+/// Web UI hosting mode for the `vaelspire` server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum UiMode {
+    /// Serve the embedded `SvelteKit` UI compiled into the binary (Core default with `embed-ui`).
+    Embedded,
+    /// UI is hosted externally (e.g., Enterprise CDN / white-label domain); API only here.
+    External,
+    /// Disable UI routes completely (pure headless API mode).
+    ApiOnly,
+}
+
+impl UiMode {
+    /// Stable lowercase mode label for discovery responses.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Embedded => "embedded",
+            Self::External => "external",
+            Self::ApiOnly => "api-only",
+        }
+    }
+}
+
 /// Errors encountered while loading or validating server configuration.
 #[derive(Debug)]
 pub enum ConfigError {
@@ -88,6 +111,10 @@ pub struct ServerConfig {
     /// Optional server-configured login URL for `/forward-auth` unauthenticated redirects.
     /// When `None`, `/forward-auth` returns `401 Unauthorized`.
     pub forward_auth_login_url: Option<String>,
+    /// Canonical public OIDC issuer URL (e.g., `http://127.0.0.1:8080` or `https://auth.example.com`).
+    pub issuer_url: String,
+    /// Web UI hosting mode (`embedded`, `external`, or `api-only`).
+    pub ui_mode: UiMode,
 }
 
 impl fmt::Debug for ServerConfig {
@@ -106,6 +133,8 @@ impl fmt::Debug for ServerConfig {
             .field("roles", &self.roles)
             .field("rate_limit", &self.rate_limit)
             .field("forward_auth_login_url", &self.forward_auth_login_url)
+            .field("issuer_url", &self.issuer_url)
+            .field("ui_mode", &self.ui_mode)
             .finish_non_exhaustive()
     }
 }

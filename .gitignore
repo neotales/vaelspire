@@ -20,6 +20,10 @@ build/
 target/
 bin/
 coverage/
+ui/node_modules/
+ui/.svelte-kit/
+ui/build/
+enterprise/target/
 *.log
 *.sqlite
 *.sqlite-wal

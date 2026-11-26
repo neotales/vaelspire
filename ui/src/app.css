@@ -1,0 +1,110 @@
+@import 'tailwindcss';
+
+/* Vaelspire Obsidian Forge Palette: Warm Obsidian, Dragon-Ember Crimson, Molten Brass/Amber-Gold */
+:root {
+	--vs-bg: #0c0a09;
+	--vs-surface-1: #141110;
+	--vs-surface-2: #1c1917;
+	--vs-border: #292524;
+	--vs-crimson: #dc2626;
+	--vs-ember: #ea580c;
+	--vs-gold: #f59e0b;
+	--vs-gold-soft: #fde68a;
+	--vs-emerald: #10b981;
+	--vs-neotales: #a855f7;
+}
+
+body {
+	background-color: var(--vs-bg);
+	background-image:
+		radial-gradient(ellipse 80% 50% at 50% -15%, rgba(220, 38, 38, 0.16), transparent),
+		radial-gradient(ellipse 60% 40% at 85% 10%, rgba(217, 119, 6, 0.1), transparent);
+	min-height: 100vh;
+}
+
+.vs-card {
+	background: linear-gradient(180deg, rgba(28, 25, 23, 0.92), rgba(20, 17, 16, 0.96));
+	border: 1px solid #292524;
+	border-radius: 0.875rem;
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.vs-input {
+	width: 100%;
+	background-color: #0c0a09;
+	border: 1px solid #3f3834;
+	border-radius: 0.5rem;
+	padding: 0.625rem 0.85rem;
+	color: #fafaf9;
+	font-size: 0.925rem;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.vs-input:focus {
+	outline: none;
+	border-color: #f59e0b;
+	box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+}
+
+.vs-btn-primary {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	background: linear-gradient(135deg, #dc2626, #ea580c);
+	color: #fffbeb;
+	font-weight: 600;
+	padding: 0.6rem 1.1rem;
+	border-radius: 0.5rem;
+	border: 1px solid rgba(251, 191, 36, 0.25);
+	cursor: pointer;
+	transition: filter 0.15s ease, transform 0.1s ease;
+}
+
+.vs-btn-primary:hover:not(:disabled) {
+	filter: brightness(1.1);
+}
+
+.vs-btn-primary:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.vs-btn-secondary {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	background-color: #1c1917;
+	color: #e7e5e4;
+	font-weight: 500;
+	padding: 0.55rem 1rem;
+	border-radius: 0.5rem;
+	border: 1px solid #3f3834;
+	cursor: pointer;
+	transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.vs-btn-secondary:hover:not(:disabled) {
+	border-color: #d97706;
+	color: #fde68a;
+}
+
+.vs-btn-danger {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4rem;
+	background-color: rgba(220, 38, 38, 0.14);
+	color: #fca5a5;
+	font-weight: 500;
+	padding: 0.4rem 0.75rem;
+	border-radius: 0.5rem;
+	border: 1px solid rgba(220, 38, 38, 0.35);
+	cursor: pointer;
+}
+
+.vs-btn-danger:hover {
+	background-color: rgba(220, 38, 38, 0.24);
+	color: #fecaca;
+}

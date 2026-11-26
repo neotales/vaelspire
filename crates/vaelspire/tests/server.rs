@@ -12,7 +12,9 @@ use axum::http::{HeaderMap, Request, StatusCode, header};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 use vaelspire::bootstrap::{BootstrapOutcome, bootstrap_admin, ensure_tenant};
-use vaelspire::config::{ServerConfig, generate_hex_key, load_or_create_key, parse_hex_key};
+use vaelspire::config::{
+    ServerConfig, UiMode, generate_hex_key, load_or_create_key, parse_hex_key,
+};
 use vaelspire::server::build_router;
 use vaelspire_auth::ApiKeys;
 use vaelspire_axum::{DEFAULT_CSRF_COOKIE, DEFAULT_SESSION_COOKIE};
@@ -36,6 +38,8 @@ fn test_config(sqlite_path: std::path::PathBuf, digest_key: [u8; 32]) -> ServerC
         roles: true,
         rate_limit: (100, Duration::from_secs(60)),
         forward_auth_login_url: None,
+        issuer_url: "http://127.0.0.1:8080".to_owned(),
+        ui_mode: UiMode::ApiOnly,
     }
 }
 

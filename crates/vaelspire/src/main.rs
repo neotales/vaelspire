@@ -9,7 +9,7 @@ use std::time::Duration;
 use clap::{Args, Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 use vaelspire::bootstrap::{BootstrapOutcome, bootstrap_admin, ensure_tenant};
-use vaelspire::config::{LogFormat, ServerConfig, generate_hex_key, load_or_create_key};
+use vaelspire::config::{LogFormat, ServerConfig, UiMode, generate_hex_key, load_or_create_key};
 use vaelspire::server::serve;
 use vaelspire_axum::{DEFAULT_CSRF_COOKIE, DEFAULT_SESSION_COOKIE};
 use vaelspire_store_sqlite::open;
@@ -165,6 +165,14 @@ struct ServeArgs {
     #[arg(long, env = "VAELSPIRE_FORWARD_AUTH_LOGIN_URL")]
     forward_auth_login_url: Option<String>,
 
+    /// Canonical public OIDC issuer URL (defaults to `http://<bind>` or `https://<bind>`).
+    #[arg(long, env = "VAELSPIRE_ISSUER")]
+    issuer: Option<String>,
+
+    /// Web UI serving mode (`embedded`, `external`, or `api-only`).
+    #[arg(long, env = "VAELSPIRE_UI_MODE", default_value = "embedded")]
+    ui_mode: UiMode,
+
     /// Optional initial admin email to bootstrap idempotently on startup.
     #[arg(long, env = "VAELSPIRE_ADMIN_EMAIL")]
     admin_email: Option<String>,
@@ -275,6 +283,11 @@ async fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
 
+            let scheme = if cookie_secure { "https" } else { "http" };
+            let issuer_url = args
+                .issuer
+                .unwrap_or_else(|| format!("{scheme}://{}", args.bind));
+
             let config = ServerConfig {
                 bind: args.bind,
                 sqlite_path: args.sqlite,
@@ -293,6 +306,8 @@ async fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
                     Duration::from_secs(args.rate_limit_window_secs),
                 ),
                 forward_auth_login_url: args.forward_auth_login_url,
+                issuer_url,
+                ui_mode: args.ui_mode,
             };
 
             serve(store, tenant_id, config).await

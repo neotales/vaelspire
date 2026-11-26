@@ -1,4 +1,5 @@
-//! Axum HTTP server wiring: auth routes, `/forward-auth`, `/metrics`, `/health`, and `/ready`.
+//! Axum HTTP server wiring: auth routes, OIDC `IdP`, SCIM 2.0, SAML metadata,
+//! `/forward-auth`, `/metrics`, `/health`, `/ready`, and optional embedded `SvelteKit` UI.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -7,32 +8,37 @@ use axum::extract::{Request, State};
 use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{any, get};
+use axum::routing::{any, get, post};
 use axum::{Json, Router};
 use serde_json::json;
 use tokio::net::TcpListener;
 use vaelspire_auth::{ApiKeys, Auth, Policy, SessionCache};
 use vaelspire_axum::AuthRouter;
-use vaelspire_core::{AuthError, Id, Timestamp};
+use vaelspire_core::{AuthError, Id, Session, Timestamp};
+use vaelspire_oidc::{OidcProvider, OidcProviderConfig};
 use vaelspire_store_sqlite::SqliteStore;
 use zeroize::Zeroizing;
 
 use crate::bootstrap::{check_store_ready, lookup_user_email};
-use crate::config::ServerConfig;
+use crate::config::{ServerConfig, UiMode};
 use crate::metrics::{ForwardAuthMethod, Metrics};
+use crate::{oidc_http, scim, ui};
 
-/// Shared runtime state for Vaelspire's server routes (`/forward-auth`, `/metrics`, `/ready`).
+/// Shared runtime state for Vaelspire's server routes.
 #[derive(Clone)]
 pub struct AppState {
-    store: Arc<SqliteStore>,
-    tenant_id: Id,
-    digest_key: Zeroizing<[u8; 32]>,
-    session_cache: Arc<SessionCache>,
-    session_cookie: String,
-    csrf_cookie: String,
-    api_key_prefix: String,
-    forward_auth_login_url: Option<String>,
-    metrics: Arc<Metrics>,
+    pub(crate) store: Arc<SqliteStore>,
+    pub(crate) tenant_id: Id,
+    pub(crate) digest_key: Zeroizing<[u8; 32]>,
+    pub(crate) session_cache: Arc<SessionCache>,
+    pub(crate) session_cookie: String,
+    pub(crate) csrf_cookie: String,
+    pub(crate) api_key_prefix: String,
+    pub(crate) forward_auth_login_url: Option<String>,
+    pub(crate) issuer_url: String,
+    pub(crate) ui_mode: UiMode,
+    pub(crate) oidc: Arc<OidcProvider>,
+    pub(crate) metrics: Arc<Metrics>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -41,6 +47,8 @@ impl std::fmt::Debug for AppState {
             .field("tenant_id", &self.tenant_id)
             .field("session_cookie", &self.session_cookie)
             .field("api_key_prefix", &self.api_key_prefix)
+            .field("issuer_url", &self.issuer_url)
+            .field("ui_mode", &self.ui_mode)
             .finish_non_exhaustive()
     }
 }
@@ -48,7 +56,7 @@ impl std::fmt::Debug for AppState {
 /// Build the complete Axum [`Router`] for Vaelspire Core.
 ///
 /// # Errors
-/// Returns [`AuthError`] if configuration (such as `api_key_prefix`) is rejected.
+/// Returns [`AuthError`] if configuration (such as `api_key_prefix`) or OIDC initialization fails.
 pub fn build_router(
     store: Arc<SqliteStore>,
     tenant_id: Id,
@@ -56,6 +64,13 @@ pub fn build_router(
 ) -> Result<Router, AuthError> {
     let metrics = Arc::new(Metrics::new());
     let session_cache = Arc::new(SessionCache::default());
+    let oidc = Arc::new(
+        OidcProvider::new(OidcProviderConfig::new(
+            config.issuer_url.clone(),
+            *config.digest_key,
+        ))
+        .map_err(|_| AuthError::Store)?,
+    );
 
     let mut auth_router = AuthRouter::new(
         Arc::clone(&store),
@@ -84,6 +99,9 @@ pub fn build_router(
         csrf_cookie: config.csrf_cookie.clone(),
         api_key_prefix: config.api_key_prefix.clone(),
         forward_auth_login_url: config.forward_auth_login_url.clone(),
+        issuer_url: config.issuer_url.clone(),
+        ui_mode: config.ui_mode,
+        oidc,
         metrics: Arc::clone(&metrics),
     };
 
@@ -92,11 +110,37 @@ pub fn build_router(
         .route("/ready", get(ready))
         .route("/metrics", get(prometheus_metrics))
         .route("/.well-known/vaelspire", get(discovery))
+        .route(
+            "/.well-known/openid-configuration",
+            get(oidc_http::openid_configuration),
+        )
+        .route("/.well-known/jwks.json", get(oidc_http::jwks))
+        .route("/oauth2/authorize", get(oidc_http::authorize_get))
+        .route("/oauth2/token", post(oidc_http::token_endpoint))
+        .route("/oauth2/userinfo", get(oidc_http::userinfo))
+        .route("/oauth2/introspect", post(oidc_http::introspect))
+        .route("/oauth2/revoke", post(oidc_http::revoke))
+        .route("/saml/metadata", get(oidc_http::saml_metadata))
+        .route(
+            "/admin/oidc/clients",
+            get(oidc_http::list_clients).post(oidc_http::create_client),
+        )
+        .route(
+            "/scim/v2/ServiceProviderConfig",
+            get(scim::service_provider_config),
+        )
+        .route(
+            "/scim/v2/Users",
+            get(scim::list_users).post(scim::create_user),
+        )
+        .route(
+            "/scim/v2/Users/{id}",
+            get(scim::get_user).delete(scim::delete_user),
+        )
         .route("/forward-auth", any(forward_auth))
         .with_state(state);
 
-    let app = core_routes
-        .merge(auth_router.into_router())
+    let app = ui::attach_ui_routes(core_routes.merge(auth_router.into_router()), config.ui_mode)
         .layer(middleware::from_fn_with_state(metrics, count_http_requests));
 
     Ok(app)
@@ -118,8 +162,10 @@ pub async fn serve(
     let local_addr = listener.local_addr()?;
     tracing::info!(
         bind = %local_addr,
+        issuer = %config.issuer_url,
         tenant = %tenant_id,
         cookie_secure = config.cookie_secure,
+        ui_mode = config.ui_mode.as_str(),
         auditing = config.auditing,
         "Vaelspire Core listening"
     );
@@ -133,6 +179,45 @@ pub async fn serve(
 
     tracing::info!("Vaelspire Core shut down cleanly");
     Ok(())
+}
+
+/// Resolve an active browser session from `Cookie` headers.
+pub(crate) async fn resolve_session_from_headers(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Option<Session> {
+    let token = extract_cookie(headers, &state.session_cookie)?;
+    let auth = Auth::new(state.store.as_ref(), *state.digest_key, Policy::default())
+        .session_cache(Arc::clone(&state.session_cache));
+    auth.resolve_session(token, Timestamp::now_utc()).await.ok()
+}
+
+/// Check whether `headers` carry a valid session cookie OR valid API key.
+pub(crate) async fn is_authenticated(state: &AppState, headers: &HeaderMap) -> bool {
+    if resolve_session_from_headers(state, headers).await.is_some() {
+        return true;
+    }
+    if let Some(api_key) = extract_api_key(headers)
+        && let Ok(keys) = ApiKeys::new(
+            state.store.as_ref(),
+            *state.digest_key,
+            Some(&state.api_key_prefix),
+        )
+        && keys.lookup(api_key, Timestamp::now_utc()).await.is_ok()
+    {
+        return true;
+    }
+    false
+}
+
+/// Extract a raw `Authorization: Bearer <token>` header value.
+pub(crate) fn extract_bearer_token(headers: &HeaderMap) -> Option<&str> {
+    let auth = headers.get(header::AUTHORIZATION)?.to_str().ok()?.trim();
+    let rest = auth
+        .strip_prefix("Bearer ")
+        .or_else(|| auth.strip_prefix("bearer "))?;
+    let token = rest.trim();
+    (!token.is_empty()).then_some(token)
 }
 
 async fn count_http_requests(
@@ -197,7 +282,9 @@ async fn discovery(State(state): State<AppState>) -> impl IntoResponse {
         "service": "vaelspire",
         "edition": "core",
         "version": env!("CARGO_PKG_VERSION"),
+        "issuer": state.issuer_url,
         "tenant_id": state.tenant_id.to_string(),
+        "ui_mode": state.ui_mode.as_str(),
         "cookies": {
             "session": state.session_cookie,
             "csrf": state.csrf_cookie,
@@ -207,21 +294,21 @@ async fn discovery(State(state): State<AppState>) -> impl IntoResponse {
             "ready": "/ready",
             "metrics": "/metrics",
             "forward_auth": "/forward-auth",
+            "openid_configuration": "/.well-known/openid-configuration",
+            "jwks": "/.well-known/jwks.json",
+            "saml_metadata": "/saml/metadata",
+            "scim_users": "/scim/v2/Users",
             "sign_up": "/sign-up",
             "sign_in": "/sign-in",
             "sign_out": "/sign-out",
             "session": "/session",
             "sessions": "/sessions",
             "api_keys": "/api-keys",
+            "admin_oidc_clients": "/admin/oidc/clients",
         }
     }))
 }
 
-/// Reverse-proxy forward authentication endpoint for Caddy, Traefik, and Nginx.
-///
-/// Checks the session cookie first, then falls back to `Authorization: Bearer <key>`
-/// or `X-API-Key: <key>`. On success returns `200 OK` with identity headers; on failure
-/// returns `401 Unauthorized` (or `302 Found` to the configured `forward_auth_login_url`).
 async fn forward_auth(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let now = Timestamp::now_utc();
 
@@ -352,20 +439,8 @@ fn extract_cookie<'a>(headers: &'a HeaderMap, cookie_name: &str) -> Option<&'a s
 }
 
 fn extract_api_key(headers: &HeaderMap) -> Option<&str> {
-    if let Some(auth) = headers
-        .get(header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-    {
-        let trimmed = auth.trim();
-        if let Some(rest) = trimmed
-            .strip_prefix("Bearer ")
-            .or_else(|| trimmed.strip_prefix("bearer "))
-        {
-            let token = rest.trim();
-            if !token.is_empty() {
-                return Some(token);
-            }
-        }
+    if let Some(token) = extract_bearer_token(headers) {
+        return Some(token);
     }
     if let Some(key) = headers.get("x-api-key").and_then(|v| v.to_str().ok()) {
         let trimmed = key.trim();

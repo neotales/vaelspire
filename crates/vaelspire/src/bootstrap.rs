@@ -161,6 +161,127 @@ pub async fn check_store_ready(store: &SqliteStore) -> Result<(), BootstrapError
     Ok(())
 }
 
+/// Summary user row for SCIM 2.0 and Admin directory views.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectoryUser {
+    /// `UUIDv7` account identifier.
+    pub id: Id,
+    /// Owning tenant identifier.
+    pub tenant_id: Id,
+    /// Normalized lowercase email.
+    pub email: String,
+    /// Account status (`active`, `pending`, etc.).
+    pub status: String,
+}
+
+/// List non-deleted users in `tenant_id` (newest first, capped at `limit`).
+///
+/// # Errors
+/// Returns [`BootstrapError::Database`] or [`BootstrapError::CorruptId`] on failure.
+pub async fn list_tenant_users(
+    store: &SqliteStore,
+    tenant_id: Id,
+    limit: i64,
+) -> Result<Vec<DirectoryUser>, BootstrapError> {
+    let params = [
+        Parameter::new(DbType::Bytes, Value::Bytes(tenant_id.as_bytes().to_vec()))
+            .map_err(BootstrapError::Database)?,
+        Parameter::new(DbType::I64, Value::I64(limit.clamp(1, 500)))
+            .map_err(BootstrapError::Database)?,
+    ];
+    let rows = store
+        .provider()
+        .fetch_all_async(
+            "SELECT id, tenant_id, email, status FROM auth_user WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY id DESC LIMIT ?",
+            QueryOptions::new().bind_all(&params),
+        )
+        .await
+        .map_err(BootstrapError::Database)?;
+
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let user_id_bytes: Vec<u8> = row.read("id").map_err(BootstrapError::Database)?;
+        let tenant_id_bytes: Vec<u8> = row.read("tenant_id").map_err(BootstrapError::Database)?;
+        out.push(DirectoryUser {
+            id: Id::from_slice(&user_id_bytes).map_err(|_| BootstrapError::CorruptId)?,
+            tenant_id: Id::from_slice(&tenant_id_bytes).map_err(|_| BootstrapError::CorruptId)?,
+            email: row.read("email").map_err(BootstrapError::Database)?,
+            status: row.read("status").map_err(BootstrapError::Database)?,
+        });
+    }
+    Ok(out)
+}
+
+/// Fetch one non-deleted user in `tenant_id` by `user_id`.
+///
+/// # Errors
+/// Returns [`BootstrapError::Database`] or [`BootstrapError::CorruptId`] on failure.
+pub async fn find_directory_user(
+    store: &SqliteStore,
+    tenant_id: Id,
+    user_id: Id,
+) -> Result<Option<DirectoryUser>, BootstrapError> {
+    let params = [
+        Parameter::new(DbType::Bytes, Value::Bytes(tenant_id.as_bytes().to_vec()))
+            .map_err(BootstrapError::Database)?,
+        Parameter::new(DbType::Bytes, Value::Bytes(user_id.as_bytes().to_vec()))
+            .map_err(BootstrapError::Database)?,
+    ];
+    match store
+        .provider()
+        .fetch_one_async(
+            "SELECT id, tenant_id, email, status FROM auth_user WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL LIMIT 1",
+            QueryOptions::new().bind_all(&params),
+        )
+        .await
+    {
+        Ok(row) => {
+            let user_id_bytes: Vec<u8> = row.read("id").map_err(BootstrapError::Database)?;
+            let tenant_id_bytes: Vec<u8> =
+                row.read("tenant_id").map_err(BootstrapError::Database)?;
+            Ok(Some(DirectoryUser {
+                id: Id::from_slice(&user_id_bytes).map_err(|_| BootstrapError::CorruptId)?,
+                tenant_id: Id::from_slice(&tenant_id_bytes)
+                    .map_err(|_| BootstrapError::CorruptId)?,
+                email: row.read("email").map_err(BootstrapError::Database)?,
+                status: row.read("status").map_err(BootstrapError::Database)?,
+            }))
+        }
+        Err(err) if err.kind() == ErrorKind::NoRows => Ok(None),
+        Err(err) => Err(BootstrapError::Database(err)),
+    }
+}
+
+/// Soft-delete a user by `user_id` within `tenant_id` (used by SCIM 2.0 `DELETE /scim/v2/Users/{id}`).
+///
+/// # Errors
+/// Returns [`BootstrapError::Database`] on failure.
+pub async fn soft_delete_directory_user(
+    store: &SqliteStore,
+    tenant_id: Id,
+    user_id: Id,
+) -> Result<bool, BootstrapError> {
+    let now_str = Timestamp::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_owned());
+    let params = [
+        Parameter::new(DbType::Text, Value::Text(now_str)).map_err(BootstrapError::Database)?,
+        Parameter::new(DbType::Bytes, Value::Bytes(tenant_id.as_bytes().to_vec()))
+            .map_err(BootstrapError::Database)?,
+        Parameter::new(DbType::Bytes, Value::Bytes(user_id.as_bytes().to_vec()))
+            .map_err(BootstrapError::Database)?,
+    ];
+    let affected = store
+        .provider()
+        .execute_async(
+            "UPDATE auth_user SET deleted_at = ?, status = 'deleted' WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL",
+            QueryOptions::new().bind_all(&params),
+        )
+        .await
+        .map_err(BootstrapError::Database)?;
+    Ok(affected > 0)
+}
+
 async fn find_role_id(
     store: &SqliteStore,
     tenant_id: Id,

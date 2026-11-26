@@ -136,13 +136,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | Crate | Purpose | Key Capabilities |
 | :--- | :--- | :--- |
-| [**`vaelspire`**](crates/vaelspire/README.md) | Single-binary CLI + HTTP Server | `serve`, `migrate`, `admin bootstrap`, `keygen`, `/forward-auth`, `/metrics`, `/health` |
-| [**`vaelspire-core`**](crates/vaelspire-core/README.md) | Zero-I/O Contracts | `AuthStore` trait, `Id` (`UUIDv7`), `AuthError`, `User`, `Session`, `ApiKey`, `AuditEvent` |
+| [**`vaelspire`**](crates/vaelspire/README.md) | Single-binary CLI + HTTP Server | `serve`, `migrate`, `admin bootstrap`, `keygen`, OIDC 1.0 IdP, SCIM 2.0, SAML metadata, `/forward-auth`, `/metrics`, optional `--features embed-ui` SvelteKit console |
+| [**`vaelspire-core`**](crates/vaelspire-core/README.md) | Zero-I/O Contracts & Seams | `AuthStore` trait, `Id` (`UUIDv7`), `AuthError`, `User`, `Session`, `ApiKey`, `AuditEvent`, `extensions::{LicenseGate, AuditSink, TelemetrySink, RegionPolicy, ReplicationHook}` |
 | [**`vaelspire-auth`**](crates/vaelspire-auth/README.md) | Embeddable Auth Engine | Argon2id + bcrypt upgrade, BLAKE3 keyed digests, sessions, TOTP MFA, Passkeys, API keys, RBAC |
 | [**`vaelspire-axum`**](crates/vaelspire-axum/README.md) | Axum 0.8 HTTP Router | Fail-closed cookies, origin allow-list, double-submit CSRF, `spawn_blocking` Argon2, social/OIDC client |
+| [**`vaelspire-oidc`**](crates/vaelspire-oidc/README.md) | OIDC 1.0 / OAuth 2.0 IdP | Discovery 1.0, rotating `Ed25519` JWKS (RFC 7638), Auth Code + PKCE `S256`, Refresh Rotation + reuse revocation, NHI `client_credentials`, UserInfo, Introspect, Revoke |
+| [**`vaelspire-verify`**](crates/vaelspire-verify/README.md) | Zero-DB JWT Verifier | Stateless `EdDSA` (`Ed25519`) JWT + RFC 7517 JWKS verification for downstream microservices |
 | [**`vaelspire-email`**](crates/vaelspire-email/README.md) | Vendor-Neutral Delivery | Async `Sender` trait (accepts closures) + optional rustls `SmtpSender` (`lettre`) |
 | [**`vaelspire-store-sqlite`**](crates/vaelspire-store-sqlite/README.md) | Embedded SQLite Store | `neotales-dbapi` + `neotales-migration`, transactional audit & immutability triggers |
 | [**`vaelspire-store-postgres`**](crates/vaelspire-store-postgres/README.md) | PostgreSQL 17+ Store | `neotales-dbapi-postgres` + advisory-locked migrations, shared `conformance.rs` suite |
+
+### 🧩 Embedded Web UI & Isolated Enterprise Workspace
+
+- **Web Console (`ui/`):** SvelteKit (`adapter-static`) + Tailwind console (Login, Register, OIDC Consent, Account/Sessions/API Keys, Core Admin Console). Build with `pnpm --dir ui build`, embed with `cargo build -p vaelspire --features embed-ui`, or run headless via `--ui-mode external|api-only`.
+- **Interactive Demo (`scripts/demo.sh`):** One command boots the embedded-UI binary, runs live OIDC + SCIM + `/forward-auth` + `/metrics` checks, and opens the console at `http://127.0.0.1:8080/ui/`.
+- **Enterprise Workspace (`enterprise/`):** Proprietary isolated Cargo workspace (`vaelspire-license`, `vaelspire-worm`, `vaelspire-telemetry`, `vaelspire-georep`) implementing `vaelspire-core::extensions` under [LICENSE-ENTERPRISE](LICENSE-ENTERPRISE).
+- **Desktop Companion (`apps/vaelspire-desktop/`):** Isolated **Rune** (`anomalyco/rune`) companion app spec talking exclusively to Vaelspire's HTTP API.
 
 ---
 

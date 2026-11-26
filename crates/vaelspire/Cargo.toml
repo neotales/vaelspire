@@ -13,11 +13,18 @@ repository.workspace = true
 name = "vaelspire"
 path = "src/main.rs"
 
+[features]
+default = []
+embed-ui = ["dep:rust-embed", "dep:mime_guess"]
+
 [dependencies]
-axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+axum = { version = "0.8", default-features = false, features = ["form", "http1", "json", "query", "tokio"] }
+base64.workspace = true
 clap = { version = "4.5", features = ["derive", "env"] }
 getrandom = "0.3"
+mime_guess = { version = "2", optional = true }
 neotales-dbapi = "=0.0.0-alpha.0"
+rust-embed = { version = "8", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 time = { version = "0.3", features = ["formatting"] }
@@ -28,10 +35,13 @@ uuid = { version = "1", features = ["v7"] }
 vaelspire-auth = { path = "../vaelspire-auth", features = ["password", "session", "apikeys", "email-signin"] }
 vaelspire-axum = { path = "../vaelspire-axum", features = ["password", "session", "apikeys", "email-signin"] }
 vaelspire-core = { path = "../vaelspire-core" }
+vaelspire-oidc = { path = "../vaelspire-oidc" }
 vaelspire-store-sqlite = { path = "../vaelspire-store-sqlite" }
+vaelspire-verify = { path = "../vaelspire-verify" }
 zeroize.workspace = true
 
 [dev-dependencies]
+sha2.workspace = true
 tempfile = "3.24"
 tower = { version = "0.5", features = ["util"] }
 

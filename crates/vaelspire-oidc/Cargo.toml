@@ -1,0 +1,28 @@
+[package]
+name = "vaelspire-oidc"
+description = "OpenID Connect & OAuth 2.0 Identity Provider (IdP) engine for Vaelspire (EdDSA JWKS, PKCE S256, refresh rotation, NHI client_credentials)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+base64.workspace = true
+blake3 = "1"
+ed25519-dalek = { version = "2.2", default-features = false, features = ["std"] }
+getrandom = "0.3"
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+subtle = "2"
+time = { version = "0.3", features = ["formatting"] }
+uuid = { version = "1", features = ["v7"] }
+vaelspire-core = { path = "../vaelspire-core" }
+vaelspire-verify = { path = "../vaelspire-verify" }
+zeroize.workspace = true
+
+[lints]
+workspace = true

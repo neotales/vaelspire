@@ -1,0 +1,21 @@
+[package]
+name = "vaelspire-georep"
+description = "Vaelspire Enterprise multi-region data residency RegionPolicy and ReplicationHook"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+vaelspire-core.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+time.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true

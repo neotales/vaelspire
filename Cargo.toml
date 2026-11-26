@@ -6,6 +6,8 @@ members = [
     "crates/vaelspire-axum",
     "crates/vaelspire-store-sqlite",
     "crates/vaelspire-store-postgres",
+    "crates/vaelspire-verify",
+    "crates/vaelspire-oidc",
     "crates/vaelspire",
 ]
 resolver = "3"

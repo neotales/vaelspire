@@ -1,0 +1,16 @@
+[package]
+name = "vaelspire-telemetry"
+description = "Vaelspire Enterprise SIEM & OpenTelemetry (OTLP / Splunk HEC / Datadog) TelemetrySink"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+vaelspire-core.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

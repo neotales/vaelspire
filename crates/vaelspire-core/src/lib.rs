@@ -1,6 +1,8 @@
 //! I/O-independent authentication contracts. A tenant is created with `owner`, `admin`,
 //! and `member`; no permission is seeded.
 
+pub mod extensions;
+
 pub use time::OffsetDateTime as Timestamp;
 pub use uuid::Uuid as Id;
 
