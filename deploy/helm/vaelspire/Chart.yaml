@@ -1,0 +1,16 @@
+apiVersion: v2
+name: vaelspire
+description: Ultra-lightweight Rust open-core identity and authentication platform by Neotales
+type: application
+version: 0.1.0-alpha.0
+appVersion: "0.0.0-alpha.0"
+home: https://vaelspire.dev
+sources:
+  - https://github.com/neotales/vaelspire
+keywords:
+  - auth
+  - oidc
+  - scim
+  - passkeys
+  - forward-auth
+  - rust

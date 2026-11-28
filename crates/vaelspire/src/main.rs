@@ -8,10 +8,18 @@ use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
+use vaelspire::alerts::{AlertCliArgs, AlertCommand, run_alert_command};
 use vaelspire::bootstrap::{BootstrapOutcome, bootstrap_admin, ensure_tenant};
+use vaelspire::cli_mgmt::{
+    AuditCommand, OrgCommand, RbacCommand, UserCommand, run_audit_command, run_org_command,
+    run_rbac_command, run_user_command,
+};
 use vaelspire::config::{LogFormat, ServerConfig, UiMode, generate_hex_key, load_or_create_key};
+use vaelspire::ext_store::ensure_extended_schema;
+use vaelspire::security::{IpCidr, IpSource};
 use vaelspire::server::serve;
 use vaelspire_axum::{DEFAULT_CSRF_COOKIE, DEFAULT_SESSION_COOKIE};
+use vaelspire_core::privacy::{AuditIpMode, PiiLogMode, format_email_for_log};
 use vaelspire_store_sqlite::open;
 use zeroize::Zeroizing;
 
@@ -37,8 +45,8 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Start the Vaelspire Core HTTP server (Auth API + /forward-auth + /metrics).
-    Serve(ServeArgs),
+    /// Start the Vaelspire Core HTTP server (Auth API + OIDC + SCIM + RBAC + /forward-auth + /metrics).
+    Serve(Box<ServeArgs>),
     /// Open the database and apply pending Vaelspire schema migrations.
     Migrate(DbArgs),
     /// Generate a cryptographically random 256-bit hex key for `VAELSPIRE_AUTH_KEY`.
@@ -47,6 +55,31 @@ enum Command {
     Admin {
         #[command(subcommand)]
         command: AdminCommand,
+    },
+    /// User lifecycle & GDPR management commands.
+    User {
+        #[command(subcommand)]
+        command: UserCommand,
+    },
+    /// Organization policy & domain verification commands.
+    Org {
+        #[command(subcommand)]
+        command: OrgCommand,
+    },
+    /// Org-wide & per-application RBAC (roles, permissions, effective access) commands.
+    Rbac {
+        #[command(subcommand)]
+        command: RbacCommand,
+    },
+    /// Append-only audit log inspection commands.
+    Audit {
+        #[command(subcommand)]
+        command: AuditCommand,
+    },
+    /// Multi-sink alert testing and diagnostics (`vaelspire-alerts`).
+    Alert {
+        #[command(subcommand)]
+        command: AlertCommand,
     },
 }
 
@@ -58,7 +91,7 @@ enum AdminCommand {
 
 #[derive(Debug, Args)]
 struct DbArgs {
-    /// Path to the SQLite database file.
+    /// Path to the `SQLite` database file.
     #[arg(
         long,
         env = "VAELSPIRE_SQLITE_PATH",
@@ -69,7 +102,7 @@ struct DbArgs {
 
 #[derive(Debug, Args)]
 struct BootstrapArgs {
-    /// Path to the SQLite database file.
+    /// Path to the `SQLite` database file.
     #[arg(
         long,
         env = "VAELSPIRE_SQLITE_PATH",
@@ -101,7 +134,7 @@ struct ServeArgs {
     #[arg(long, env = "VAELSPIRE_BIND", default_value = "127.0.0.1:8080")]
     bind: SocketAddr,
 
-    /// Path to the SQLite database file.
+    /// Path to the `SQLite` database file.
     #[arg(
         long,
         env = "VAELSPIRE_SQLITE_PATH",
@@ -128,6 +161,14 @@ struct ServeArgs {
     /// Trust the first `X-Forwarded-For` header entry behind a reverse proxy.
     #[arg(long, env = "VAELSPIRE_TRUST_PROXY", default_value_t = false)]
     trust_proxy: bool,
+
+    /// Header source for trusted client IP extraction (`direct`, `x-forwarded-for`, `cf-connecting-ip`, `forwarded`).
+    #[arg(long, env = "VAELSPIRE_IP_SOURCE", default_value = "direct")]
+    ip_source: IpSource,
+
+    /// Comma-separated trusted proxy CIDR blocks (e.g. `10.0.0.0/8,127.0.0.1/32`).
+    #[arg(long, env = "VAELSPIRE_TRUSTED_PROXIES", value_delimiter = ',')]
+    trusted_proxies: Vec<String>,
 
     /// Session cookie name.
     #[arg(
@@ -173,6 +214,34 @@ struct ServeArgs {
     #[arg(long, env = "VAELSPIRE_UI_MODE", default_value = "embedded")]
     ui_mode: UiMode,
 
+    /// Email PII redaction mode in logs (`masked`, `id-only`, or `full`).
+    #[arg(long, env = "VAELSPIRE_PII_LOG_MODE", default_value = "masked")]
+    pii_log_mode: String,
+
+    /// IP address retention mode in append-only audit logs (`full`, `truncated`, or `none`).
+    #[arg(long, env = "VAELSPIRE_AUDIT_IP_MODE", default_value = "full")]
+    audit_ip_mode: String,
+
+    /// Disable sliding session expirations (use fixed session timeout instead).
+    #[arg(long, env = "VAELSPIRE_SESSION_FIXED", default_value_t = false)]
+    session_fixed: bool,
+
+    /// Idle (or fixed) session lifetime in seconds (default 24h).
+    #[arg(long, env = "VAELSPIRE_SESSION_IDLE_SECS", default_value_t = 86_400)]
+    session_idle_secs: u64,
+
+    /// Optional hard absolute maximum session lifetime in seconds (0 = no hard cap; default 7 days).
+    #[arg(long, env = "VAELSPIRE_SESSION_MAX_SECS", default_value_t = 604_800)]
+    session_max_secs: u64,
+
+    /// Optional WebAuthn Relying Party ID (defaults to host of `--issuer`).
+    #[arg(long, env = "VAELSPIRE_RP_ID")]
+    rp_id: Option<String>,
+
+    /// Optional WebAuthn Relying Party origin (defaults to `--issuer`).
+    #[arg(long, env = "VAELSPIRE_RP_ORIGIN")]
+    rp_origin: Option<String>,
+
     /// Optional initial admin email to bootstrap idempotently on startup.
     #[arg(long, env = "VAELSPIRE_ADMIN_EMAIL")]
     admin_email: Option<String>,
@@ -180,6 +249,10 @@ struct ServeArgs {
     /// Optional initial admin password (used together with `--admin-email`).
     #[arg(long, env = "VAELSPIRE_ADMIN_PASSWORD")]
     admin_password: Option<String>,
+
+    /// Optional multi-sink alerting configuration (`vaelspire-alerts`).
+    #[command(flatten)]
+    alerts: AlertCliArgs,
 }
 
 #[tokio::main]
@@ -201,21 +274,35 @@ async fn main() -> ExitCode {
 
     init_tracing(cli.log_format);
 
-    match run(cli.command).await {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(err) => {
-            tracing::error!(error = %err, "vaelspire command failed");
-            ExitCode::FAILURE
-        }
+    match cli.command {
+        Command::User { command } => run_user_command(command).await,
+        Command::Org { command } => run_org_command(command).await,
+        Command::Rbac { command } => run_rbac_command(command).await,
+        Command::Audit { command } => run_audit_command(command).await,
+        Command::Alert { command } => run_alert_command(command).await,
+        other => match run(other).await {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(err) => {
+                tracing::error!(error = %err, "vaelspire command failed");
+                ExitCode::FAILURE
+            }
+        },
     }
 }
 
+#[allow(clippy::too_many_lines)]
 async fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
     match command {
-        Command::Keygen => unreachable!("handled before tracing init"),
+        Command::Keygen
+        | Command::User { .. }
+        | Command::Org { .. }
+        | Command::Rbac { .. }
+        | Command::Audit { .. }
+        | Command::Alert { .. } => unreachable!("handled directly in main"),
         Command::Migrate(args) => {
-            let _store = open(&args.sqlite).await?;
-            tracing::info!(sqlite = %args.sqlite.display(), "migrations verified");
+            let store = open(&args.sqlite).await?;
+            ensure_extended_schema(&store).await?;
+            tracing::info!(sqlite = %args.sqlite.display(), "migrations verified (core + extended)");
             Ok(())
         }
         Command::Admin {
@@ -227,6 +314,7 @@ async fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
                 tracing::info!(key_file = %path.display(), "loaded local digest key file");
             }
             let store = open(&args.sqlite).await?;
+            ensure_extended_schema(&store).await?;
             let tenant_id = ensure_tenant(&store, &args.tenant_name).await?;
             let outcome = bootstrap_admin(
                 &store,
@@ -236,17 +324,26 @@ async fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
                 *digest_key,
             )
             .await?;
+            let masked = format_email_for_log(&args.email, PiiLogMode::Masked);
             match outcome {
                 BootstrapOutcome::Created(user_id) => {
-                    tracing::info!(%tenant_id, %user_id, email = %args.email, "admin created");
+                    tracing::info!(%tenant_id, %user_id, email = %masked, "admin created");
                 }
                 BootstrapOutcome::AlreadyExists(user_id) => {
-                    tracing::info!(%tenant_id, %user_id, email = %args.email, "admin already exists");
+                    tracing::info!(%tenant_id, %user_id, email = %masked, "admin already exists");
                 }
             }
             Ok(())
         }
         Command::Serve(args) => {
+            let pii_log_mode = PiiLogMode::parse(&args.pii_log_mode).unwrap_or_default();
+            let audit_ip_mode = AuditIpMode::parse(&args.audit_ip_mode).unwrap_or_default();
+            let trusted_proxies: Vec<IpCidr> = args
+                .trusted_proxies
+                .iter()
+                .filter_map(|raw| IpCidr::parse(raw))
+                .collect();
+
             let (digest_key, key_file) =
                 load_or_create_key(args.auth_key.as_deref(), &args.sqlite)?;
             if let Some(path) = key_file {
@@ -254,9 +351,11 @@ async fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
             }
 
             let store = Arc::new(open(&args.sqlite).await?);
+            ensure_extended_schema(&store).await?;
             let tenant_id = ensure_tenant(&store, &args.tenant_name).await?;
 
             if let (Some(email), Some(password)) = (args.admin_email, args.admin_password) {
+                let masked = format_email_for_log(&email, pii_log_mode);
                 match bootstrap_admin(
                     &store,
                     tenant_id,
@@ -267,10 +366,10 @@ async fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
                 .await?
                 {
                     BootstrapOutcome::Created(user_id) => {
-                        tracing::info!(%tenant_id, %user_id, %email, "bootstrapped initial admin");
+                        tracing::info!(%tenant_id, %user_id, email = %masked, "bootstrapped initial admin");
                     }
                     BootstrapOutcome::AlreadyExists(user_id) => {
-                        tracing::info!(%tenant_id, %user_id, %email, "initial admin already present");
+                        tracing::info!(%tenant_id, %user_id, email = %masked, "initial admin already present");
                     }
                 }
             }
@@ -287,6 +386,10 @@ async fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
             let issuer_url = args
                 .issuer
                 .unwrap_or_else(|| format!("{scheme}://{}", args.bind));
+
+            let session_max_lifetime =
+                (args.session_max_secs > 0).then(|| Duration::from_secs(args.session_max_secs));
+            let alerts = args.alerts.to_alerts_config()?;
 
             let config = ServerConfig {
                 bind: args.bind,
@@ -308,6 +411,16 @@ async fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
                 forward_auth_login_url: args.forward_auth_login_url,
                 issuer_url,
                 ui_mode: args.ui_mode,
+                pii_log_mode,
+                audit_ip_mode,
+                ip_source: args.ip_source,
+                trusted_proxies,
+                session_sliding: !args.session_fixed,
+                session_idle_ttl: Duration::from_secs(args.session_idle_secs),
+                session_max_lifetime,
+                rp_id: args.rp_id,
+                rp_origin: args.rp_origin,
+                alerts,
             };
 
             serve(store, tenant_id, config).await

@@ -1,11 +1,13 @@
 [workspace]
 members = [
     "crates/vaelspire-core",
+    "crates/vaelspire-alerts",
     "crates/vaelspire-auth",
     "crates/vaelspire-email",
     "crates/vaelspire-axum",
     "crates/vaelspire-store-sqlite",
     "crates/vaelspire-store-postgres",
+    "crates/vaelspire-store-d1",
     "crates/vaelspire-verify",
     "crates/vaelspire-oidc",
     "crates/vaelspire",

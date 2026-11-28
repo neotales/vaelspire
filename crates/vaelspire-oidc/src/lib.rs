@@ -125,6 +125,37 @@ impl OidcClient {
     pub const fn is_confidential(&self) -> bool {
         self.secret_digest.is_some()
     }
+
+    /// Return the keyed BLAKE3 digest of the client secret for persistence (`None` for public clients).
+    #[must_use]
+    pub fn secret_digest(&self) -> Option<&[u8]> {
+        self.secret_digest.as_ref().map(<[u8; 32]>::as_slice)
+    }
+
+    /// Reconstruct a persisted [`OidcClient`] from durable storage on server startup.
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub const fn from_persisted(
+        client_id: String,
+        name: String,
+        tenant_id: Id,
+        redirect_uris: Vec<String>,
+        allowed_scopes: Vec<String>,
+        grant_types: Vec<GrantType>,
+        secret_digest: Option<[u8; 32]>,
+        require_pkce: bool,
+    ) -> Self {
+        Self {
+            client_id,
+            name,
+            tenant_id,
+            redirect_uris,
+            allowed_scopes,
+            grant_types,
+            secret_digest,
+            require_pkce,
+        }
+    }
 }
 
 /// Input parameters for registering a new OAuth/OIDC client.
@@ -528,6 +559,25 @@ impl OidcProvider {
             client,
             client_secret: secret_plain,
         })
+    }
+
+    /// Insert or replace a previously persisted client (used on server startup).
+    ///
+    /// # Errors
+    /// Returns [`OidcError::ServerError`] if the lock is poisoned.
+    pub fn restore_client(&self, client: OidcClient) -> Result<(), OidcError> {
+        let mut guard = self.state.write().map_err(|_| OidcError::ServerError)?;
+        guard.clients.insert(client.client_id.clone(), client);
+        Ok(())
+    }
+
+    /// Remove a registered client by `client_id`. Returns `true` if a client was removed.
+    ///
+    /// # Errors
+    /// Returns [`OidcError::ServerError`] if the lock is poisoned.
+    pub fn delete_client(&self, client_id: &str) -> Result<bool, OidcError> {
+        let mut guard = self.state.write().map_err(|_| OidcError::ServerError)?;
+        Ok(guard.clients.remove(client_id).is_some())
     }
 
     /// Look up public metadata for a registered client.

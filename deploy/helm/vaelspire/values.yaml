@@ -1,0 +1,71 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/neotales/vaelspire
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+config:
+  issuer: "https://auth.example.com"
+  tenantName: "default"
+  uiMode: "embedded" # embedded | external | api-only
+  logFormat: "json"
+  piiLogMode: "masked" # masked | id-only | full
+  auditIpMode: "truncated" # full | truncated | none
+  ipSource: "x-forwarded-for" # direct | x-forwarded-for | cf-connecting-ip | forwarded
+  trustedProxies: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+  sessionSliding: true
+  sessionIdleSecs: 86400
+  sessionMaxSecs: 604800
+  allowedOrigins: "https://auth.example.com"
+
+secrets:
+  # Supply an existing Kubernetes Secret containing key `VAELSPIRE_AUTH_KEY` (64 hex chars).
+  existingSecret: ""
+  authKey: ""
+
+persistence:
+  enabled: true
+  size: 1Gi
+  mountPath: /var/lib/vaelspire
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: auth.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []

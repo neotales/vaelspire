@@ -23,4 +23,4 @@ async fn init_postgres(pool: PostgresPool) -> Result<(), Box<dyn std::error::Err
 }
 ```
 
-> Need active-active **multi-region geo-replication**, data-residency pinning, or **WORM immutable audit archival**? See [**Vaelspire Enterprise**](../../enterprise/README.md).
+> Need active-active **multi-region geo-replication**, data-residency pinning, or **WORM immutable audit archival**? See [**Vaelspire Enterprise**](https://vaelspire.dev/enterprise/overview/).

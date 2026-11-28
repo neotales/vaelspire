@@ -1,8 +1,9 @@
 //! Extension trait seams for Vaelspire Core and Vaelspire Enterprise.
 //!
 //! Core ships zero-cost default implementations (`NoopAuditSink`, `NoopTelemetrySink`,
-//! `CommunityLicenseGate`, `SingleRegionPolicy`, `NoopReplicationHook`). Proprietary
-//! modules under `enterprise/` implement these exact traits for WORM immutable storage,
+//! `CommunityLicenseGate`, `SingleRegionPolicy`, `NoopReplicationHook`). Commercial
+//! Enterprise modules (maintained separately in the private `vaelspire-enterprise`
+//! repository) implement these exact traits for WORM immutable storage,
 //! SIEM/OpenTelemetry streaming, offline Ed25519 licensing, and multi-region
 //! geo-replication — without refactoring core authentication logic.
 

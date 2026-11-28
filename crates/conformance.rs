@@ -2536,12 +2536,15 @@ async fn suspended_tenant<S: AuthStore>(store: &S, auth: &Auth<'_, S>, now: Time
 
 /// A replaced [`Policy`] must reach sessions, lockout, and proofs, and issuance must
 /// expose the raw token plus the 64-character version 1 hex digest.
+#[allow(clippy::too_many_lines)]
 async fn policy<S: AuthStore>(store: &S, now: Timestamp) {
     let auth = Auth::new(
         store,
         [9; 32],
         Policy {
             session_ttl: Duration::hours(2),
+            session_sliding: true,
+            session_max_lifetime: None,
             failure_limit: 3,
             lockout: Duration::minutes(7),
             proof_ttl: Duration::minutes(5),

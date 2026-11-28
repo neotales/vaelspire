@@ -35,6 +35,16 @@ fn config_with_ui_mode(sqlite_path: PathBuf, ui_mode: UiMode) -> ServerConfig {
         trust_proxy: false,
         rate_limit: (1000, Duration::from_secs(60)),
         forward_auth_login_url: None,
+        pii_log_mode: vaelspire_core::privacy::PiiLogMode::Masked,
+        audit_ip_mode: vaelspire_core::privacy::AuditIpMode::Full,
+        ip_source: vaelspire::security::IpSource::Direct,
+        trusted_proxies: Vec::new(),
+        session_sliding: true,
+        session_idle_ttl: Duration::from_hours(24),
+        session_max_lifetime: Some(Duration::from_hours(168)),
+        rp_id: None,
+        rp_origin: None,
+        alerts: None,
     }
 }
 

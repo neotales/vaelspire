@@ -26,8 +26,10 @@
 
 	const navItems = [
 		{ href: `${base}/`, label: 'Overview' },
-		{ href: `${base}/account`, label: 'Account & Keys' },
-		{ href: `${base}/admin`, label: 'Admin Console' },
+		{ href: `${base}/account`, label: 'Account & Passkeys' },
+		{ href: `${base}/admin`, label: 'Admin' },
+		{ href: `${base}/org`, label: 'Org SSO' },
+		{ href: `${base}/rbac`, label: 'RBAC' },
 		{ href: `${base}/consent`, label: 'OIDC Consent' }
 	];
 </script>

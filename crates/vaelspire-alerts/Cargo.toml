@@ -1,0 +1,47 @@
+[package]
+name = "vaelspire-alerts"
+description = "Reusable multi-sink alerting router (Webhook, Slack, Discord, Teams, Gotify, ntfy, SMS, Email) — zero Vaelspire coupling, planned for extraction to neotales-alerts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[features]
+default = ["webhook", "slack", "discord", "teams", "gotify", "ntfy", "sms"]
+http = ["dep:reqwest", "dep:url"]
+webhook = ["http", "dep:hmac", "dep:sha2", "dep:hex"]
+slack = ["http"]
+discord = ["http"]
+teams = ["http"]
+gotify = ["http"]
+ntfy = ["http", "dep:base64"]
+sms = ["http", "dep:base64"]
+email = ["dep:lettre"]
+all-sinks = ["webhook", "slack", "discord", "teams", "gotify", "ntfy", "sms", "email"]
+
+[dependencies]
+async-trait = "0.1"
+base64 = { workspace = true, optional = true }
+hex = { version = "0.4", optional = true }
+hmac = { version = "0.12", optional = true }
+lettre = { version = "=0.11.23", optional = true, default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
+reqwest = { version = "0.12", optional = true, default-features = false, features = ["json", "rustls-tls"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2 = { workspace = true, optional = true }
+thiserror = "2"
+time = { version = "0.3", features = ["formatting"] }
+tokio = { version = "1.47", features = ["rt", "sync", "time"] }
+tracing = "0.1"
+url = { workspace = true, optional = true }
+zeroize.workspace = true
+
+[dev-dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+tokio = { version = "1.47", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+
+[lints]
+workspace = true

@@ -37,4 +37,4 @@ fn inspect_core_types() -> Result<(), AuthError> {
 }
 ```
 
-> Part of [**Vaelspire**](../../README.md) by Neotales — MIT Open-Core, with [Vaelspire Enterprise](../../enterprise/README.md) for multi-region geo-replication, WORM audit storage, and FIPS 140-3.
+> Part of [**Vaelspire**](../../README.md) by Neotales — 100% MIT Open-Core, with [Vaelspire Enterprise](https://vaelspire.dev/enterprise/overview/) for multi-region geo-replication, WORM audit storage, and FIPS 140-3.

@@ -40,6 +40,16 @@ fn test_config(sqlite_path: std::path::PathBuf, digest_key: [u8; 32]) -> ServerC
         forward_auth_login_url: None,
         issuer_url: "http://127.0.0.1:8080".to_owned(),
         ui_mode: UiMode::ApiOnly,
+        pii_log_mode: vaelspire_core::privacy::PiiLogMode::Masked,
+        audit_ip_mode: vaelspire_core::privacy::AuditIpMode::Full,
+        ip_source: vaelspire::security::IpSource::Direct,
+        trusted_proxies: Vec::new(),
+        session_sliding: true,
+        session_idle_ttl: Duration::from_hours(24),
+        session_max_lifetime: Some(Duration::from_hours(168)),
+        rp_id: None,
+        rp_origin: None,
+        alerts: None,
     }
 }
 

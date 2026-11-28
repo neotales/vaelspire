@@ -405,8 +405,16 @@ pub fn verify_password(password: &[u8], encoded_hash: &str) -> Result<bool, Auth
 /// value the library happened to choose.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Policy {
-    /// Lifetime of a session issued by [`Auth::finish_sign_in`], starting at the supplied instant.
+    /// Lifetime (and sliding idle window when [`Self::session_sliding`] is `true`)
+    /// of a session issued by [`Auth::finish_sign_in`], starting at the supplied instant.
     pub session_ttl: Duration,
+    /// When `true` (default), active sessions extend automatically once half of
+    /// [`Self::session_ttl`] has elapsed. When `false`, sessions use a fixed timeout.
+    pub session_sliding: bool,
+    /// Optional hard absolute maximum lifetime measured from the session's creation
+    /// timestamp (`UUIDv7`). Sliding extensions never cross this ceiling, and once
+    /// `now >= created_at + max_lifetime` the session is rejected as `Unauthorized`.
+    pub session_max_lifetime: Option<Duration>,
     /// Consecutive failed passwords that lock the account.
     pub failure_limit: i32,
     /// How long the account stays locked once [`Self::failure_limit`] is reached.
@@ -419,11 +427,25 @@ impl Default for Policy {
     fn default() -> Self {
         Self {
             session_ttl: Duration::hours(24),
+            session_sliding: true,
+            session_max_lifetime: None,
             failure_limit: 5,
             lockout: Duration::minutes(15),
             proof_ttl: Duration::minutes(30),
         }
     }
+}
+
+#[cfg(feature = "session")]
+fn session_hard_deadline(session_id: Id, max_lifetime: Option<Duration>) -> Option<Timestamp> {
+    let max_lifetime = max_lifetime?;
+    let ts = session_id.get_timestamp()?;
+    let (secs, nanos) = ts.to_unix();
+    let total_nanos = i128::from(secs)
+        .checked_mul(1_000_000_000)?
+        .checked_add(i128::from(nanos))?;
+    let created_at = Timestamp::from_unix_timestamp_nanos(total_nanos).ok()?;
+    Some(created_at + max_lifetime)
 }
 
 /// Workflows with a caller-owned store, a 256-bit digest key, and a [`Policy`].
@@ -1062,7 +1084,10 @@ impl<'a, S: AuthStore> Auth<'a, S> {
                 && *cached_generation == generation
                 && *until > Instant::now()
                 && session.expires_at > now
-                && session.expires_at - now >= self.policy.session_ttl / 2
+                && session_hard_deadline(session.id, self.policy.session_max_lifetime)
+                    .is_none_or(|deadline| now < deadline)
+                && (!self.policy.session_sliding
+                    || session.expires_at - now >= self.policy.session_ttl / 2)
             {
                 return Ok((session.clone(), false));
             }
@@ -1073,26 +1098,36 @@ impl<'a, S: AuthStore> Auth<'a, S> {
             .find_session(&digest, now)
             .await
             .map_err(hide_missing)?;
-        let extended = self.policy.session_ttl.is_positive()
-            && session.expires_at - now < self.policy.session_ttl / 2;
-        if extended {
-            let expires_at = now + self.policy.session_ttl;
-            self.store
-                .extend_session(
-                    &digest,
-                    expires_at,
-                    self.audit_event(
-                        None,
-                        Some(session.tenant_id),
-                        Some(session.user_id),
-                        ACTION_SESSION_EXTENDED,
-                        "ok",
-                    ),
-                    now,
-                )
-                .await
-                .map_err(hide_missing)?;
-            session.expires_at = expires_at;
+        let hard_deadline = session_hard_deadline(session.id, self.policy.session_max_lifetime);
+        if hard_deadline.is_some_and(|deadline| now >= deadline) {
+            return Err(AuthError::Unauthorized);
+        }
+        let mut extended = false;
+        if self.policy.session_sliding
+            && self.policy.session_ttl.is_positive()
+            && session.expires_at - now < self.policy.session_ttl / 2
+        {
+            let proposed = now + self.policy.session_ttl;
+            let expires_at = hard_deadline.map_or(proposed, |deadline| proposed.min(deadline));
+            if expires_at > session.expires_at {
+                self.store
+                    .extend_session(
+                        &digest,
+                        expires_at,
+                        self.audit_event(
+                            None,
+                            Some(session.tenant_id),
+                            Some(session.user_id),
+                            ACTION_SESSION_EXTENDED,
+                            "ok",
+                        ),
+                        now,
+                    )
+                    .await
+                    .map_err(hide_missing)?;
+                session.expires_at = expires_at;
+                extended = true;
+            }
         }
         if let (Some(cache), Some(entries)) = (&self.cache, entries.as_mut())
             && !cache.duration.is_zero()

@@ -1,0 +1,20 @@
+{
+  // Cloudflare Containers deployment for Vaelspire's native static Rust binary.
+  // Runs deploy/Dockerfile with native SIMD Argon2id, Passkeys, OIDC, SCIM, and embedded UI.
+  "name": "vaelspire-container",
+  "compatibility_date": "2026-01-01",
+  "containers": [
+    {
+      "class_name": "VaelspireContainer",
+      "image": "../../Dockerfile",
+      "max_instances": 10,
+      "env": {
+        "VAELSPIRE_BIND": "0.0.0.0:8080",
+        "VAELSPIRE_IP_SOURCE": "cf-connecting-ip",
+        "VAELSPIRE_PII_LOG_MODE": "masked",
+        "VAELSPIRE_AUDIT_IP_MODE": "truncated",
+        "VAELSPIRE_UI_MODE": "embedded"
+      }
+    }
+  ]
+}

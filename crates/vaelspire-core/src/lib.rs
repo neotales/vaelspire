@@ -2,6 +2,7 @@
 //! and `member`; no permission is seeded.
 
 pub mod extensions;
+pub mod privacy;
 
 pub use time::OffsetDateTime as Timestamp;
 pub use uuid::Uuid as Id;

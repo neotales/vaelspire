@@ -66,4 +66,4 @@ async fn register_and_sign_in() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-> Need multi-region geo-replication, WORM audit storage, or SIEM streaming? Check out [**Vaelspire Enterprise**](../../enterprise/README.md).
+> Need multi-region geo-replication, WORM audit storage, or SIEM streaming? Check out [**Vaelspire Enterprise**](https://vaelspire.dev/enterprise/overview/).

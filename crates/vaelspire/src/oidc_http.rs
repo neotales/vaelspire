@@ -223,28 +223,66 @@ pub async fn token_endpoint(State(state): State<AppState>, request: Request) -> 
     };
 
     match result {
-        Ok(tokens) => (
-            StatusCode::OK,
-            [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))],
-            Json(tokens),
-        )
-            .into_response(),
-        Err(err) => oidc_error_response(err),
+        Ok(tokens) => {
+            state.metrics.record_oidc_token(&body.grant_type, true);
+            (
+                StatusCode::OK,
+                [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))],
+                Json(tokens),
+            )
+                .into_response()
+        }
+        Err(err) => {
+            state.metrics.record_oidc_token(&body.grant_type, false);
+            if body.grant_type == "refresh_token" && matches!(err, OidcError::InvalidGrant) {
+                state
+                    .metrics
+                    .record_anomaly(crate::security::AnomalyKind::RefreshTokenReuse);
+                crate::alerts::notify_anomaly(
+                    state.alerts.as_ref(),
+                    crate::security::AnomalyKind::RefreshTokenReuse,
+                    None,
+                    None,
+                    None,
+                    state.pii_log_mode,
+                    state.audit_ip_mode,
+                );
+                tracing::warn!(client_id = %client_id, "oidc refresh grant denied (possible token reuse)");
+            }
+            oidc_error_response(err)
+        }
     }
 }
 
-/// `GET /oauth2/userinfo`
+/// `GET /oauth2/userinfo` — includes effective org + per-app RBAC `roles`, `groups`, `permissions`.
 pub async fn userinfo(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let Some(bearer) = extract_bearer_token(&headers) else {
         return oidc_error_response(OidcError::InvalidToken);
     };
     match state.oidc.userinfo(bearer, Timestamp::now_utc()) {
-        Ok(info) => (
-            StatusCode::OK,
-            [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))],
-            Json(info),
-        )
-            .into_response(),
+        Ok(info) => {
+            let mut payload = serde_json::to_value(&info).unwrap_or_else(|_| json!({}));
+            if let Ok(user_id) = vaelspire_core::Id::parse_str(&info.sub)
+                && let Ok(access) = crate::rbac::resolve_effective_access(
+                    &state.store,
+                    state.tenant_id,
+                    user_id,
+                    None,
+                )
+                .await
+                && let Some(obj) = payload.as_object_mut()
+            {
+                obj.insert("roles".to_owned(), json!(access.roles));
+                obj.insert("groups".to_owned(), json!(access.groups));
+                obj.insert("permissions".to_owned(), json!(access.permissions));
+            }
+            (
+                StatusCode::OK,
+                [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))],
+                Json(payload),
+            )
+                .into_response()
+        }
         Err(err) => oidc_error_response(err),
     }
 }
@@ -403,20 +441,151 @@ pub async fn create_client(
         confidential: body.confidential,
     };
     match state.oidc.register_client(input) {
-        Ok(registered) => (
-            StatusCode::CREATED,
-            [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))],
-            Json(json!({
-                "client_id": registered.client.client_id,
-                "name": registered.client.name,
-                "redirect_uris": registered.client.redirect_uris,
-                "allowed_scopes": registered.client.allowed_scopes,
-                "confidential": registered.client.is_confidential(),
-                "client_secret": registered.client_secret.as_ref().map(|s| s.as_str()),
-            })),
-        )
-            .into_response(),
+        Ok(registered) => {
+            // Persist client definition into vs_oidc_client (best-effort when extended schema is present).
+            let _ = persist_oidc_client(&state.store, &registered.client).await;
+            (
+                StatusCode::CREATED,
+                [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))],
+                Json(json!({
+                    "client_id": registered.client.client_id,
+                    "name": registered.client.name,
+                    "redirect_uris": registered.client.redirect_uris,
+                    "allowed_scopes": registered.client.allowed_scopes,
+                    "confidential": registered.client.is_confidential(),
+                    "client_secret": registered.client_secret.as_ref().map(|s| s.as_str()),
+                })),
+            )
+                .into_response()
+        }
         Err(err) => oidc_error_response(err),
+    }
+}
+
+async fn persist_oidc_client(
+    store: &vaelspire_store_sqlite::SqliteStore,
+    client: &vaelspire_oidc::OidcClient,
+) -> Result<(), neotales_dbapi::DbError> {
+    use crate::ext_store::{i64_param, id_param, opt_bytes_param, text_param};
+    use neotales_dbapi::Pool;
+    let redirects = serde_json::to_string(&client.redirect_uris).unwrap_or_else(|_| "[]".into());
+    let scopes = serde_json::to_string(&client.allowed_scopes).unwrap_or_else(|_| "[]".into());
+    let grants = serde_json::to_string(&client.grant_types).unwrap_or_else(|_| "[]".into());
+    let now = Timestamp::now_utc().to_string();
+    let params = [
+        text_param(&client.client_id)?,
+        id_param(client.tenant_id)?,
+        text_param(&client.name)?,
+        i64_param(i64::from(client.is_confidential()))?,
+        opt_bytes_param(client.secret_digest())?,
+        text_param(&redirects)?,
+        text_param(&scopes)?,
+        text_param(&grants)?,
+        i64_param(i64::from(client.require_pkce))?,
+        text_param(&now)?,
+    ];
+    store
+        .provider()
+        .execute_async(
+            "INSERT OR REPLACE INTO vs_oidc_client \
+             (client_id, tenant_id, name, confidential, secret_digest, redirect_uris_json, allowed_scopes_json, grant_types_json, require_pkce, created_at) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            neotales_dbapi::QueryOptions::new().bind_all(&params),
+        )
+        .await?;
+    Ok(())
+}
+
+/// Reload all persisted OIDC clients from `vs_oidc_client` into `oidc` on server startup.
+///
+/// # Errors
+/// Returns [`neotales_dbapi::DbError`] if reading `vs_oidc_client` fails.
+pub async fn load_persisted_clients(
+    store: &vaelspire_store_sqlite::SqliteStore,
+    oidc: &vaelspire_oidc::OidcProvider,
+) -> Result<usize, neotales_dbapi::DbError> {
+    use neotales_dbapi::{Pool, QueryOptions};
+    let rows = store
+        .provider()
+        .fetch_all_async(
+            "SELECT client_id, tenant_id, name, secret_digest, redirect_uris_json, allowed_scopes_json, grant_types_json, require_pkce FROM vs_oidc_client",
+            QueryOptions::new(),
+        )
+        .await?;
+    let mut loaded = 0usize;
+    for row in rows {
+        let Ok(client_id) = row.read::<String>("client_id") else {
+            continue;
+        };
+        let Ok(raw_tid) = row.read::<Vec<u8>>("tenant_id") else {
+            continue;
+        };
+        let Ok(tenant_id) = vaelspire_core::Id::from_slice(&raw_tid) else {
+            continue;
+        };
+        let name = row.read::<String>("name").unwrap_or_default();
+        let secret_digest = row
+            .read::<Vec<u8>>("secret_digest")
+            .ok()
+            .and_then(|b| <[u8; 32]>::try_from(b).ok());
+        let redirect_uris: Vec<String> = row
+            .read::<String>("redirect_uris_json")
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+        let allowed_scopes: Vec<String> = row
+            .read::<String>("allowed_scopes_json")
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+        let grant_types: Vec<GrantType> = row
+            .read::<String>("grant_types_json")
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_else(default_grant_types);
+        let require_pkce = row.read::<i64>("require_pkce").unwrap_or(1) != 0;
+        let client = vaelspire_oidc::OidcClient::from_persisted(
+            client_id,
+            name,
+            tenant_id,
+            redirect_uris,
+            allowed_scopes,
+            grant_types,
+            secret_digest,
+            require_pkce,
+        );
+        if oidc.restore_client(client).is_ok() {
+            loaded += 1;
+        }
+    }
+    Ok(loaded)
+}
+
+/// `DELETE /admin/oidc/clients/{client_id}` — removes an OIDC client from memory and `vs_oidc_client`.
+pub async fn delete_client(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    axum::extract::Path(client_id): axum::extract::Path<String>,
+) -> Response {
+    use neotales_dbapi::{Pool, QueryOptions};
+    if !crate::server::is_authenticated(&state, &headers).await {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let removed = state.oidc.delete_client(&client_id).unwrap_or(false);
+    if let Ok(cid_p) = crate::ext_store::text_param(&client_id) {
+        let _ = state
+            .store
+            .provider()
+            .execute_async(
+                "DELETE FROM vs_oidc_client WHERE client_id = ?",
+                QueryOptions::new().bind_all(&[cid_p]),
+            )
+            .await;
+    }
+    if removed {
+        StatusCode::NO_CONTENT.into_response()
+    } else {
+        StatusCode::NOT_FOUND.into_response()
     }
 }
 

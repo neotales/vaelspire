@@ -1,0 +1,14 @@
+name = "vaelspire-edge"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+# Ultra-low-cost Cloudflare D1 database binding (apply schema.sql via `wrangler d1 execute`).
+[[d1_databases]]
+binding = "VAELSPIRE_DB"
+database_name = "vaelspire-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+[vars]
+VAELSPIRE_ISSUER = "https://auth.example.com"
+VAELSPIRE_UPSTREAM_ORIGIN = "https://origin-auth.example.com"
+VAELSPIRE_AUDIENCE = "vaelsgard"

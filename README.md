@@ -10,8 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="Core License: MIT" src="https://img.shields.io/badge/Core_License-MIT-d97706?style=flat-square" /></a>
-  <a href="LICENSE-ENTERPRISE"><img alt="Enterprise License: Commercial" src="https://img.shields.io/badge/Enterprise-Commercial-f59e0b?style=flat-square" /></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-d97706?style=flat-square" /></a>
   <img alt="Rust 1.100" src="https://img.shields.io/badge/Rust-1.100%20%282024%29-orange?style=flat-square" />
   <img alt="Zero Unsafe" src="https://img.shields.io/badge/unsafe__code-forbid-10b981?style=flat-square" />
 </p>
@@ -145,13 +144,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | [**`vaelspire-email`**](crates/vaelspire-email/README.md) | Vendor-Neutral Delivery | Async `Sender` trait (accepts closures) + optional rustls `SmtpSender` (`lettre`) |
 | [**`vaelspire-store-sqlite`**](crates/vaelspire-store-sqlite/README.md) | Embedded SQLite Store | `neotales-dbapi` + `neotales-migration`, transactional audit & immutability triggers |
 | [**`vaelspire-store-postgres`**](crates/vaelspire-store-postgres/README.md) | PostgreSQL 17+ Store | `neotales-dbapi-postgres` + advisory-locked migrations, shared `conformance.rs` suite |
+| [**`vaelspire-store-d1`**](crates/vaelspire-store-d1/README.md) | Cloudflare D1 Store | Pure-Rust, `wasm32`-clean `AuthStore` adapter (`D1Store`, `D1Client`, `D1_SCHEMA_SQL`) for low-cost edge deployments |
+| [**`vaelspire-alerts`**](crates/vaelspire-alerts/README.md) | Multi-Sink Alert Router | Reusable, zero-Vaelspire-coupling alert router (Webhook + HMAC-SHA256, Slack, Discord, Teams, Gotify, ntfy, Twilio/Generic SMS, SMTP Email) |
 
-### 🧩 Embedded Web UI & Isolated Enterprise Workspace
+### 🧩 Embedded Web UI & Desktop Companion
 
-- **Web Console (`ui/`):** SvelteKit (`adapter-static`) + Tailwind console (Login, Register, OIDC Consent, Account/Sessions/API Keys, Core Admin Console). Build with `pnpm --dir ui build`, embed with `cargo build -p vaelspire --features embed-ui`, or run headless via `--ui-mode external|api-only`.
-- **Interactive Demo (`scripts/demo.sh`):** One command boots the embedded-UI binary, runs live OIDC + SCIM + `/forward-auth` + `/metrics` checks, and opens the console at `http://127.0.0.1:8080/ui/`.
-- **Enterprise Workspace (`enterprise/`):** Proprietary isolated Cargo workspace (`vaelspire-license`, `vaelspire-worm`, `vaelspire-telemetry`, `vaelspire-georep`) implementing `vaelspire-core::extensions` under [LICENSE-ENTERPRISE](LICENSE-ENTERPRISE).
+- **Web Console (`ui/`):** SvelteKit (`adapter-static`) + Tailwind console (Login, Register, OIDC Consent, Account/Passkeys/GDPR, Admin, Org SSO, Per-App RBAC). Build with `pnpm --dir ui build`, embed with `cargo build -p vaelspire --features embed-ui`, or run headless via `--ui-mode external|api-only`.
+- **Interactive Demo (`scripts/demo.sh`):** One command boots the embedded-UI binary, runs live OIDC + SCIM + RBAC + GDPR + `/forward-auth` + `/metrics` checks, and opens the console at `http://127.0.0.1:8080/ui/`.
 - **Desktop Companion (`apps/vaelspire-desktop/`):** Isolated **Rune** (`anomalyco/rune`) companion app spec talking exclusively to Vaelspire's HTTP API.
+- **Vaelspire Enterprise (Separate Private Repo):** Commercial compliance & global-scale modules (`vaelspire-license`, `vaelspire-worm`, `vaelspire-telemetry`, `vaelspire-georep`) live in a completely separate private repository (`neotales/vaelspire-enterprise`) implementing `vaelspire-core::extensions`, keeping this public repository **100% pure MIT**.
 
 ---
 
@@ -172,7 +173,7 @@ When your organization needs **global low-latency replication, regulated immutab
 | **Compliance & Support** | Audited standard crypto + OIDC Conformance CI | Priority patches & SLA | **FIPS 140-3 builds**, third-party pen-test/audit reports (NDA), SOC 2 / ISO packages, dedicated SLA |
 
 > 💼 **Interested in Vaelspire Enterprise, Managed Cloud, or an early design-partner seat?**
-> See [enterprise/README.md](enterprise/README.md) and [LICENSE-ENTERPRISE](LICENSE-ENTERPRISE), or open a discussion on GitHub to talk with Neotales.
+> See the [Vaelspire Enterprise docs](https://vaelspire.dev/enterprise/overview/) or open a discussion on GitHub to talk with Neotales.
 
 ---
 
@@ -200,5 +201,4 @@ cargo test --workspace --exclude vaelspire-store-postgres --exclude vaelspire-em
 
 ## 📜 Licensing
 
-- **Open-Core** (`/` outside `enterprise/`): [MIT License](LICENSE)
-- **Enterprise** (`enterprise/` and Enterprise-marked modules): [Vaelspire Enterprise License](LICENSE-ENTERPRISE)
+This entire repository (`neotales/vaelspire`) is licensed under the [MIT License](LICENSE). Proprietary Vaelspire Enterprise modules are maintained separately in a private commercial repository (`neotales/vaelspire-enterprise`).

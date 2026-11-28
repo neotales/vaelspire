@@ -3,24 +3,31 @@
 	import { onMount } from 'svelte';
 	import {
 		createApiKey,
+		eraseOwnAccount,
+		exportOwnGdprData,
 		getCurrentSession,
 		listApiKeys,
 		listSessions,
+		passkeyRegisterBegin,
+		passkeyRegisterFinish,
 		revokeApiKey,
 		revokeSession,
 		type ApiKeyInfo,
 		type SessionInfo
 	} from '$lib/api';
+	import { createBrowserPasskey, isWebAuthnSupported } from '$lib/passkey';
 
 	let currentSession = $state<SessionInfo | null>(null);
 	let sessions = $state<SessionInfo[]>([]);
 	let apiKeys = $state<ApiKeyInfo[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
+	let notice = $state<string | null>(null);
 
 	let keyName = $state('');
 	let keyScopes = $state('read write');
 	let newlyIssuedToken = $state<string | null>(null);
+	let gdprExportJson = $state<string | null>(null);
 	let busy = $state(false);
 
 	async function loadAll() {
@@ -43,6 +50,51 @@
 	onMount(() => {
 		loadAll();
 	});
+
+	async function handleRegisterPasskey() {
+		if (!isWebAuthnSupported()) {
+			error = 'WebAuthn / Passkeys are not supported in this browser.';
+			return;
+		}
+		busy = true;
+		error = null;
+		notice = null;
+		try {
+			const rpId = window.location.hostname;
+			const origin = window.location.origin;
+			const challenge = await passkeyRegisterBegin(rpId, origin);
+			const credential = await createBrowserPasskey(challenge);
+			await passkeyRegisterFinish(rpId, origin, credential);
+			notice = 'Passkey registered successfully for this account.';
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Passkey registration failed';
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function handleGdprExport() {
+		error = null;
+		try {
+			const bundle = await exportOwnGdprData();
+			gdprExportJson = JSON.stringify(bundle, null, 2);
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'GDPR export failed';
+		}
+	}
+
+	async function handleGdprErase() {
+		if (!confirm('Permanently anonymize your personal data (GDPR Right to Erasure) and revoke all sessions?')) {
+			return;
+		}
+		error = null;
+		try {
+			await eraseOwnAccount();
+			window.location.href = `${base}/login`;
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Account erasure failed';
+		}
+	}
 
 	async function handleRevokeSession(id: string) {
 		try {
@@ -87,9 +139,9 @@
 <div class="space-y-8">
 	<div class="flex flex-wrap items-center justify-between gap-4">
 		<div>
-			<h1 class="text-2xl font-bold text-[#fafaf9]">Account Security &amp; API Keys</h1>
+			<h1 class="text-2xl font-bold text-[#fafaf9]">Account Security, Passkeys &amp; GDPR</h1>
 			<p class="text-sm text-[#a8a29e]">
-				Manage active browser sessions and prefix-validated <code class="text-[#fde68a]">vs_</code> API keys.
+				Register hardware/platform Passkeys (WebAuthn), manage sliding sessions, mint <code class="text-[#fde68a]">vsp_</code> API keys, or exercise GDPR data rights.
 			</p>
 		</div>
 		<button type="button" onclick={loadAll} class="vs-btn-secondary text-xs">Refresh</button>
@@ -100,17 +152,34 @@
 			{error}
 		</div>
 	{/if}
+	{#if notice}
+		<div class="rounded-lg border border-[#10b981]/50 bg-[#10b981]/12 px-4 py-3 text-sm text-[#6ee7b7]">
+			{notice}
+		</div>
+	{/if}
 
 	{#if loading}
 		<div class="vs-card p-6 text-sm text-[#a8a29e]">Loading account security state...</div>
 	{:else if !currentSession}
 		<div class="vs-card p-6 space-y-3">
-			<p class="text-sm text-[#d6d3d1]">Sign in to view your sessions and issue API keys.</p>
+			<p class="text-sm text-[#d6d3d1]">Sign in to view your sessions, register Passkeys, and issue API keys.</p>
 			<a href="{base}/login?next={encodeURIComponent(`${base}/account`)}" class="vs-btn-primary text-sm">
 				Sign In
 			</a>
 		</div>
 	{:else}
+		<section class="vs-card p-6 flex flex-wrap items-center justify-between gap-4">
+			<div>
+				<h2 class="text-lg font-semibold text-[#fde68a]">Passkeys (WebAuthn / FIDO2)</h2>
+				<p class="text-xs text-[#a8a29e]">
+					Bind Touch ID, Windows Hello, or a hardware security key directly to your account for phishing-resistant login.
+				</p>
+			</div>
+			<button type="button" disabled={busy} onclick={handleRegisterPasskey} class="vs-btn-primary text-xs">
+				Register New Passkey
+			</button>
+		</section>
+
 		<section class="vs-card p-6 space-y-4">
 			<div class="flex items-center justify-between">
 				<h2 class="text-lg font-semibold text-[#fde68a]">Active Sessions ({sessions.length})</h2>
@@ -223,6 +292,28 @@
 						</tbody>
 					</table>
 				</div>
+			{/if}
+		</section>
+
+		<section class="vs-card p-6 space-y-4">
+			<div class="flex flex-wrap items-center justify-between gap-4">
+				<div>
+					<h2 class="text-lg font-semibold text-[#fde68a]">GDPR Privacy &amp; Data Rights</h2>
+					<p class="text-xs text-[#a8a29e]">
+						Download your portable JSON data bundle or request immediate PII erasure (append-only audit logs remain pseudonymous).
+					</p>
+				</div>
+				<div class="flex gap-2">
+					<button type="button" onclick={handleGdprExport} class="vs-btn-secondary text-xs">
+						Export My Data (JSON)
+					</button>
+					<button type="button" onclick={handleGdprErase} class="vs-btn-danger text-xs">
+						Erase My Account
+					</button>
+				</div>
+			</div>
+			{#if gdprExportJson}
+				<pre class="max-h-72 overflow-auto rounded-lg border border-[#292524] bg-[#0c0a09] p-4 font-mono text-xs text-[#fde68a]">{gdprExportJson}</pre>
 			{/if}
 		</section>
 	{/if}

@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vaelspire.fullname" . }}
+  labels:
+    {{- include "vaelspire.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "vaelspire.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "vaelspire.selectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: vaelspire
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["serve"]
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: VAELSPIRE_BIND
+              value: "0.0.0.0:8080"
+            - name: VAELSPIRE_SQLITE_PATH
+              value: "{{ .Values.persistence.mountPath }}/vaelspire.sqlite"
+            - name: VAELSPIRE_ISSUER
+              value: {{ .Values.config.issuer | quote }}
+            - name: VAELSPIRE_TENANT_NAME
+              value: {{ .Values.config.tenantName | quote }}
+            - name: VAELSPIRE_UI_MODE
+              value: {{ .Values.config.uiMode | quote }}
+            - name: VAELSPIRE_LOG_FORMAT
+              value: {{ .Values.config.logFormat | quote }}
+            - name: VAELSPIRE_PII_LOG_MODE
+              value: {{ .Values.config.piiLogMode | quote }}
+            - name: VAELSPIRE_AUDIT_IP_MODE
+              value: {{ .Values.config.auditIpMode | quote }}
+            - name: VAELSPIRE_IP_SOURCE
+              value: {{ .Values.config.ipSource | quote }}
+            - name: VAELSPIRE_TRUSTED_PROXIES
+              value: {{ .Values.config.trustedProxies | quote }}
+            - name: VAELSPIRE_SESSION_IDLE_SECS
+              value: {{ .Values.config.sessionIdleSecs | quote }}
+            - name: VAELSPIRE_SESSION_MAX_SECS
+              value: {{ .Values.config.sessionMaxSecs | quote }}
+            - name: VAELSPIRE_ALLOWED_ORIGINS
+              value: {{ .Values.config.allowedOrigins | quote }}
+            {{- if not .Values.config.sessionSliding }}
+            - name: VAELSPIRE_SESSION_FIXED
+              value: "true"
+            {{- end }}
+            - name: VAELSPIRE_AUTH_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret | default (printf "%s-secret" (include "vaelspire.fullname" .)) }}
+                  key: VAELSPIRE_AUTH_KEY
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+          {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: data
+          emptyDir: {}
+      {{- end }}

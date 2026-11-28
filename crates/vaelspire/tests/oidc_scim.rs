@@ -46,6 +46,9 @@ async fn oidc_idp_http_scim_and_saml_metadata_end_to_end() {
     let db_path = dir.path().join("oidc.sqlite");
     let key = [11u8; 32];
     let store = Arc::new(open(&db_path).await.expect("sqlite"));
+    vaelspire::ext_store::ensure_extended_schema(&store)
+        .await
+        .expect("ext schema");
     let tenant_id = ensure_tenant(&store, "default").await.expect("tenant");
     bootstrap_admin(
         &store,
@@ -74,6 +77,16 @@ async fn oidc_idp_http_scim_and_saml_metadata_end_to_end() {
         forward_auth_login_url: None,
         issuer_url: "https://auth.vaelspire.test".to_owned(),
         ui_mode: UiMode::ApiOnly,
+        pii_log_mode: vaelspire_core::privacy::PiiLogMode::Masked,
+        audit_ip_mode: vaelspire_core::privacy::AuditIpMode::Full,
+        ip_source: vaelspire::security::IpSource::Direct,
+        trusted_proxies: Vec::new(),
+        session_sliding: true,
+        session_idle_ttl: Duration::from_hours(24),
+        session_max_lifetime: Some(Duration::from_hours(168)),
+        rp_id: None,
+        rp_origin: None,
+        alerts: None,
     };
 
     let app = build_router(store, tenant_id, &cfg).expect("router");

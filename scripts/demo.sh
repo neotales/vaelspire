@@ -115,11 +115,29 @@ TOKEN_RESP="$(curl -fsS -u "vaelsgard:${CLIENT_SECRET}" \
   "${BASE_URL}/oauth2/token")"
 echo "$TOKEN_RESP" | grep -q '"access_token"'
 
-# 5. Provision a SCIM 2.0 user & verify listing
-curl -fsS -b "$COOKIE_JAR" \
+# 5. Provision a SCIM 2.0 user, create SCIM Group, and verify RBAC + Org Portal + GDPR Export
+ALICE_JSON="$(curl -fsS -b "$COOKIE_JAR" \
   -H "Content-Type: application/scim+json" \
   -d '{"userName":"alice@vaelspire.demo","password":"alice-demo-password-123!","active":true}' \
-  "${BASE_URL}/scim/v2/Users" | grep -q 'alice@vaelspire.demo'
+  "${BASE_URL}/scim/v2/Users")"
+echo "$ALICE_JSON" | grep -q 'alice@vaelspire.demo'
+
+curl -fsS -b "$COOKIE_JAR" \
+  -H "Content-Type: application/scim+json" \
+  -d '{"displayName":"engineering"}' \
+  "${BASE_URL}/scim/v2/Groups" | grep -q 'engineering'
+
+curl -fsS -b "$COOKIE_JAR" \
+  -H "Content-Type: application/json" \
+  -d '{"app_id":"vaelsgard","name":"vault-editor"}' \
+  "${BASE_URL}/admin/rbac/roles" | grep -q 'vault-editor'
+
+curl -fsS -b "$COOKIE_JAR" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@vaelspire.demo"}' \
+  "${BASE_URL}/auth/discover" | grep -q '"mode":"local"'
+
+curl -fsS -b "$COOKIE_JAR" "${BASE_URL}/account/export" | grep -q 'vaelspire.gdpr.export.v1'
 
 # 6. Verify Prometheus metrics recorded requests
 curl -fsS "${BASE_URL}/metrics" | grep -q 'vaelspire_forward_auth_total'
@@ -128,12 +146,15 @@ echo ""
 echo "✅ ALL LIVE DEMO CHECKS PASSED!"
 echo "   • Embedded Web UI:     ${BASE_URL}/ui/"
 echo "   • Admin Console:       ${BASE_URL}/ui/admin"
+echo "   • Org SSO & Domains:   ${BASE_URL}/ui/org"
+echo "   • Per-App RBAC:        ${BASE_URL}/ui/rbac"
+echo "   • Account & Passkeys:  ${BASE_URL}/ui/account"
 echo "   • OIDC Discovery:      ${BASE_URL}/.well-known/openid-configuration"
 echo "   • JWKS (Ed25519):      ${BASE_URL}/.well-known/jwks.json"
 echo "   • SAML Metadata:       ${BASE_URL}/saml/metadata"
 echo "   • Prometheus Metrics:  ${BASE_URL}/metrics"
 echo "   • Demo Admin Login:    ${ADMIN_EMAIL} / ${ADMIN_PASS}"
-echo "   • Registered Client:   vaelsgard (OIDC + NHI verified)"
+echo "   • Registered Client:   vaelsgard (OIDC + NHI + RBAC + SCIM + GDPR verified)"
 
 if [[ "$CHECK_ONLY" == "true" ]]; then
   echo "==> --check-only requested; shutting down cleanly."

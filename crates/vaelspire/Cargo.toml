@@ -16,6 +16,8 @@ path = "src/main.rs"
 [features]
 default = []
 embed-ui = ["dep:rust-embed", "dep:mime_guess"]
+passkey = ["vaelspire-auth/passkey", "vaelspire-axum/passkey"]
+alerts-email = ["vaelspire-alerts/email"]
 
 [dependencies]
 axum = { version = "0.8", default-features = false, features = ["form", "http1", "json", "query", "tokio"] }
@@ -32,6 +34,7 @@ tokio = { version = "1.47", features = ["macros", "net", "rt-multi-thread", "sig
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 uuid = { version = "1", features = ["v7"] }
+vaelspire-alerts = { path = "../vaelspire-alerts" }
 vaelspire-auth = { path = "../vaelspire-auth", features = ["password", "session", "apikeys", "email-signin"] }
 vaelspire-axum = { path = "../vaelspire-axum", features = ["password", "session", "apikeys", "email-signin"] }
 vaelspire-core = { path = "../vaelspire-core" }

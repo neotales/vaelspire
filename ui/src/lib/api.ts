@@ -284,3 +284,250 @@ export async function createScimUser(email: string, password: string): Promise<S
 export async function deleteScimUser(id: string): Promise<void> {
 	await requestJson(`/scim/v2/Users/${encodeURIComponent(id)}`, { method: 'DELETE' }, true);
 }
+
+// --- Passkey (WebAuthn) APIs ---
+
+export async function passkeyRegisterBegin(rpId: string, origin: string): Promise<Record<string, unknown>> {
+	return requestJson('/passkey/register/begin', {
+		method: 'POST',
+		body: JSON.stringify({ rp_id: rpId, origin })
+	}, true);
+}
+
+export async function passkeyRegisterFinish(
+	rpId: string,
+	origin: string,
+	credential: Record<string, unknown>
+): Promise<void> {
+	await requestJson('/passkey/register/finish', {
+		method: 'POST',
+		body: JSON.stringify({ rp_id: rpId, origin, credential })
+	}, true);
+}
+
+export async function passkeyLoginBegin(
+	email: string,
+	rpId: string,
+	origin: string
+): Promise<Record<string, unknown>> {
+	return requestJson('/passkey/login/begin', {
+		method: 'POST',
+		body: JSON.stringify({ email, rp_id: rpId, origin })
+	}, true);
+}
+
+export async function passkeyLoginFinish(
+	rpId: string,
+	origin: string,
+	credential: Record<string, unknown>
+): Promise<unknown> {
+	return requestJson('/passkey/login/finish', {
+		method: 'POST',
+		body: JSON.stringify({ rp_id: rpId, origin, credential })
+	}, true);
+}
+
+// --- GDPR Export & Erasure ---
+
+export async function exportOwnGdprData(): Promise<Record<string, unknown>> {
+	return requestJson('/account/export');
+}
+
+export async function eraseOwnAccount(): Promise<void> {
+	await requestJson('/account/erase', { method: 'DELETE' }, true);
+}
+
+// --- Self-Service Org Policy, Domains, IdP, SCIM Tokens & Home Realm Discovery ---
+
+export interface OrgPolicy {
+	email_policy: 'allow_public' | 'business_domains_only' | 'verified_domains_only';
+	session_sliding: boolean;
+	session_idle_secs: number;
+	session_absolute_secs: number;
+	break_glass_enabled: boolean;
+}
+
+export interface OrgDomain {
+	id: string;
+	domain: string;
+	txt_record_name: string;
+	verification_token: string;
+	verified: boolean;
+	verified_at?: string | null;
+}
+
+export interface OrgIdp {
+	id: string;
+	name: string;
+	protocol: string;
+	issuer_url: string;
+	client_id: string;
+	has_client_secret: boolean;
+	has_metadata_xml: boolean;
+	jit_provisioning: boolean;
+	default_role: string;
+	group_claim: string;
+	enabled: boolean;
+}
+
+export async function discoverHomeRealm(email: string): Promise<{
+	mode: 'sso' | 'local';
+	domain_verified: boolean;
+	email_policy: string;
+	allowed: boolean;
+	reason?: string;
+	break_glass_enabled: boolean;
+	idp?: { id: string; name: string; protocol: string; issuer_url: string };
+}> {
+	return requestJson('/auth/discover', {
+		method: 'POST',
+		body: JSON.stringify({ email })
+	});
+}
+
+export async function getOrgPolicy(): Promise<OrgPolicy> {
+	return requestJson('/org/portal/policy');
+}
+
+export async function updateOrgPolicy(policy: OrgPolicy): Promise<OrgPolicy> {
+	return requestJson('/org/portal/policy', {
+		method: 'PUT',
+		body: JSON.stringify(policy)
+	}, true);
+}
+
+export async function listOrgDomains(): Promise<OrgDomain[]> {
+	const res = await requestJson<{ domains: OrgDomain[] }>('/org/portal/domains');
+	return res.domains ?? [];
+}
+
+export async function addOrgDomain(domain: string): Promise<OrgDomain> {
+	return requestJson('/org/portal/domains', {
+		method: 'POST',
+		body: JSON.stringify({ domain })
+	}, true);
+}
+
+export async function verifyOrgDomain(id: string, txtValue?: string): Promise<OrgDomain> {
+	return requestJson(`/org/portal/domains/${encodeURIComponent(id)}/verify`, {
+		method: 'POST',
+		body: JSON.stringify(txtValue ? { txt_value: txtValue } : {})
+	}, true);
+}
+
+export async function listOrgIdps(): Promise<OrgIdp[]> {
+	const res = await requestJson<{ idps: OrgIdp[] }>('/org/portal/idps');
+	return res.idps ?? [];
+}
+
+export async function createOrgIdp(payload: {
+	name: string;
+	protocol: 'oidc' | 'saml';
+	issuer_url: string;
+	client_id: string;
+	client_secret: string;
+	metadata_xml: string;
+	jit_provisioning: boolean;
+	default_role: string;
+	group_claim: string;
+	enabled: boolean;
+}): Promise<OrgIdp> {
+	return requestJson('/org/portal/idps', {
+		method: 'POST',
+		body: JSON.stringify(payload)
+	}, true);
+}
+
+export async function testOrgIdp(id: string): Promise<{ ok: boolean; checks: Array<{ check: string; ok: boolean }> }> {
+	return requestJson(`/org/portal/idps/${encodeURIComponent(id)}/test`, { method: 'POST' }, true);
+}
+
+export async function deleteOrgIdp(id: string): Promise<void> {
+	await requestJson(`/org/portal/idps/${encodeURIComponent(id)}`, { method: 'DELETE' }, true);
+}
+
+export async function createScimToken(name: string): Promise<{ id: string; name: string; token: string }> {
+	return requestJson('/org/portal/scim-tokens', {
+		method: 'POST',
+		body: JSON.stringify({ name })
+	}, true);
+}
+
+// --- Org-Wide & Per-App RBAC ---
+
+export interface AppRole {
+	id: string;
+	app_id?: string | null;
+	name: string;
+	description: string;
+}
+
+export interface AppPermission {
+	id: string;
+	app_id?: string | null;
+	name: string;
+	description: string;
+}
+
+export interface RbacGroup {
+	id: string;
+	name: string;
+	external_id?: string | null;
+}
+
+export async function listRbacRoles(): Promise<AppRole[]> {
+	const res = await requestJson<{ roles: AppRole[] }>('/admin/rbac/roles');
+	return res.roles ?? [];
+}
+
+export async function createRbacRole(name: string, appId?: string, description = ''): Promise<AppRole> {
+	return requestJson('/admin/rbac/roles', {
+		method: 'POST',
+		body: JSON.stringify({ name, app_id: appId || null, description })
+	}, true);
+}
+
+export async function listRbacPermissions(): Promise<AppPermission[]> {
+	const res = await requestJson<{ permissions: AppPermission[] }>('/admin/rbac/permissions');
+	return res.permissions ?? [];
+}
+
+export async function createRbacPermission(name: string, appId?: string, description = ''): Promise<AppPermission> {
+	return requestJson('/admin/rbac/permissions', {
+		method: 'POST',
+		body: JSON.stringify({ name, app_id: appId || null, description })
+	}, true);
+}
+
+export async function grantPermissionToRole(roleId: string, permId: string): Promise<void> {
+	await requestJson(`/admin/rbac/roles/${encodeURIComponent(roleId)}/permissions/${encodeURIComponent(permId)}`, {
+		method: 'POST'
+	}, true);
+}
+
+export async function listRbacGroups(): Promise<RbacGroup[]> {
+	const res = await requestJson<{ groups: RbacGroup[] }>('/admin/rbac/groups');
+	return res.groups ?? [];
+}
+
+export async function createRbacGroup(name: string, externalId?: string): Promise<RbacGroup> {
+	return requestJson('/admin/rbac/groups', {
+		method: 'POST',
+		body: JSON.stringify({ name, external_id: externalId || null })
+	}, true);
+}
+
+export async function assignRoleToGroup(groupId: string, roleId: string): Promise<void> {
+	await requestJson(`/admin/rbac/groups/${encodeURIComponent(groupId)}/roles/${encodeURIComponent(roleId)}`, {
+		method: 'POST'
+	}, true);
+}
+
+export async function getEffectiveAccess(userId: string, appId?: string): Promise<{
+	groups: string[];
+	roles: string[];
+	permissions: string[];
+}> {
+	const qs = appId ? `?app_id=${encodeURIComponent(appId)}` : '';
+	return requestJson(`/admin/rbac/users/${encodeURIComponent(userId)}/effective${qs}`);
+}

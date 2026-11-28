@@ -6,7 +6,11 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use vaelspire_alerts::AlertsConfig;
+use vaelspire_core::privacy::{AuditIpMode, PiiLogMode};
 use zeroize::Zeroizing;
+
+use crate::security::{IpCidr, IpSource};
 
 /// Output format for server logs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
@@ -115,6 +119,26 @@ pub struct ServerConfig {
     pub issuer_url: String,
     /// Web UI hosting mode (`embedded`, `external`, or `api-only`).
     pub ui_mode: UiMode,
+    /// Email redaction policy for operational logs (`masked`, `id-only`, or `full`).
+    pub pii_log_mode: PiiLogMode,
+    /// Client IP retention mode for append-only audit rows (`full`, `truncated`, or `none`).
+    pub audit_ip_mode: AuditIpMode,
+    /// Header source for trusted client IP extraction.
+    pub ip_source: IpSource,
+    /// Trusted proxy CIDR blocks allowed to supply forwarded client IP headers.
+    pub trusted_proxies: Vec<IpCidr>,
+    /// Whether sessions slide on activity (`true`) or use fixed expiry (`false`).
+    pub session_sliding: bool,
+    /// Idle (or fixed) session lifetime.
+    pub session_idle_ttl: Duration,
+    /// Optional hard absolute session lifetime from creation (`UUIDv7` timestamp).
+    pub session_max_lifetime: Option<Duration>,
+    /// Optional WebAuthn Relying Party ID (defaults to host of `issuer_url`).
+    pub rp_id: Option<String>,
+    /// Optional WebAuthn Relying Party origin (defaults to `issuer_url`).
+    pub rp_origin: Option<String>,
+    /// Optional multi-sink alerting configuration (`vaelspire-alerts`).
+    pub alerts: Option<AlertsConfig>,
 }
 
 impl fmt::Debug for ServerConfig {

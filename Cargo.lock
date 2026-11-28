@@ -4259,12 +4259,35 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "vaelspire-alerts",
  "vaelspire-auth",
  "vaelspire-axum",
  "vaelspire-core",
  "vaelspire-oidc",
  "vaelspire-store-sqlite",
  "vaelspire-verify",
+ "zeroize",
+]
+
+[[package]]
+name = "vaelspire-alerts"
+version = "0.0.0-alpha.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "base64 0.22.1",
+ "hex",
+ "hmac 0.12.1",
+ "lettre",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.21",
+ "time",
+ "tokio",
+ "tracing",
+ "url",
  "zeroize",
 ]
 
@@ -4358,6 +4381,20 @@ dependencies = [
  "vaelspire-core",
  "vaelspire-verify",
  "zeroize",
+]
+
+[[package]]
+name = "vaelspire-store-d1"
+version = "0.0.0-alpha.0"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "serde",
+ "serde_json",
+ "time",
+ "tokio",
+ "uuid",
+ "vaelspire-core",
 ]
 
 [[package]]
